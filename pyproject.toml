@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "rocket-league-mmr-prediction"
+version = "0.1.0"
+description = ""
+authors = ["Ivan Malison <IvanMalison@gmail.com>"]
+readme = "README.md"
+packages = [{include = "rocket_league_mmr_prediction"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+keras = "^2.11.0"
+numpy = "^1.24.2"
+carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
+aiofiles = "^23.1.0"
+
+[tool.poetry.group.dev.dependencies]
+python-lsp-server = {extras = ["all"], version = "^1.7.1"}
+ipdb = "^0.13.13"
+
+[tool.poetry.scripts]
+convert_rl_replay = 'rocket_league_mmr_prediction.console:convert_replay'
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
