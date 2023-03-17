@@ -8,10 +8,12 @@ packages = [{include = "rocket_league_mmr_prediction"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-keras = "^2.11.0"
+torch = "^2.0.0"
 numpy = "^1.24.2"
 carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
 aiofiles = "^23.1.0"
+nvidia-cuda-cupti-cu11 = "11.7.101"
+httpx = {extras = ["http2"], version = "^0.23.3"}
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
