@@ -3,7 +3,6 @@ name = "rocket-league-mmr-prediction"
 version = "0.1.0"
 description = ""
 authors = ["Ivan Malison <IvanMalison@gmail.com>"]
-readme = "README.md"
 packages = [{include = "rocket_league_mmr_prediction"}]
 
 [tool.poetry.dependencies]
@@ -14,6 +13,7 @@ carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
 aiofiles = "^23.1.0"
 nvidia-cuda-cupti-cu11 = "11.7.101"
 httpx = {extras = ["http2"], version = "^0.23.3"}
+plyvel = "^1.5.0"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
