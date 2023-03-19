@@ -28,6 +28,7 @@
           buildInputs = [
               pkgs.poetry
               pkgs.zlib
+              pkgs.rocksdb
             ];
 
             shellHook = ''

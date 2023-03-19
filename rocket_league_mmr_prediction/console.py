@@ -13,10 +13,14 @@ def test_request():
 def convert_replay():
     """Convert the game provided through sys.argv."""
     import sys
-    data_set = load.ReplayDirectoryDataLoader(sys.argv[1])
-    for i in data_set:
-        import ipdb; ipdb.set_trace()
-        pass
+    from . import tracker_network
+    from . import player_mmr_cache
+    for player in player_mmr_cache.get_all_players_from_replay_directory(sys.argv[1]):
+        print(tracker_network.get_info_uri_for_player(player))
+    # data_set = load.ReplayDirectoryDataLoader(sys.argv[1])
+    # for i in data_set:
+    #     import ipdb; ipdb.set_trace()
+    #     pass
     # numpy_array = load._CarballToNumpyConverter(
     #     load.get_carball_game(sys.argv[1])
     # ).get_numpy_array()
