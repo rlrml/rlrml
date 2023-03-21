@@ -56,18 +56,18 @@ class ReplayDirectoryDataLoader(Dataset):
         self._eager_labels = eager_labels
         self._label_lookup = label_lookup
         self._cache_extension = cache_extension
-        self._cache_directory = os.path.join(self._filepath, self._cache_directory_name)
+        self._cache_directory = os.path.join(
+            self._filepath, self._cache_directory_name
+        )
         self._labels_filepath = os.path.join(
             self._cache_directory, f"labels.{labels_extension}"
         )
         if not os.path.exists(self._cache_directory):
             os.makedirs(self._cache_directory)
-        self._labels_cache = {}
-        # if not os.path.exists(self._labels_filepath):
-        #     self._labels_cache = {}
-        #     self._save_labels_cache()
-        # else:
-        #     self._labels_cache = self._load_labels_cache()
+        if os.path.exists(self._labels_filepath):
+            self._labels_cache = self._load_labels_cache()
+        else:
+            self._labels_cache = {}
 
         self._replay_ids = list(self._get_replay_ids())
 
@@ -91,9 +91,8 @@ class ReplayDirectoryDataLoader(Dataset):
         return os.path.join(self._cache_directory, f"{replay_id}.{self._cache_extension}")
 
     def _save_labels_cache(self):
-        pass
-        # with open(self._labels_filepath, 'wb') as f:
-        #     marshal.dump(self._labels_cache, f)
+        with open(self._labels_filepath, 'wb') as f:
+            marshal.dump(self._labels_cache, f)
 
     def _load_labels_cache(self):
         with open(self._labels_filepath, 'rb') as f:

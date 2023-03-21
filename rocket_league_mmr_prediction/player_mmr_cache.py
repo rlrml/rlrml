@@ -1,3 +1,4 @@
+import math
 import os
 import itertools
 import backoff
@@ -5,6 +6,7 @@ import plyvel
 import json
 
 from . import tracker_network
+from . import manifest
 
 
 def get_all_players_from_replay_directory(filepath):
@@ -46,22 +48,38 @@ class MMRCache(object):
 
     def get_mmr_for_player(self, player) -> int:
         """Get the mmr of the provided player."""
-        return self._get_mmr_from_key(self._key_for_player(player))
+        for key in self._keys_for_player(player):
+            result = self._get_mmr_from_key(self._key_for_player(player))
+            if result is not None:
+                return result
 
     def insert_mmr_for_player(self, player, mmr: int):
         """Insert the provided mmr for the provided player."""
-        self._db.put(self._key_for_player(player), round(mmr).to_bytes(64, byteorder='big'))
+        mmr_bytes = round(mmr).to_bytes(64, byteorder='big')
+        for key in self._keys_for_player(player):
+            self._db.put(key, mmr_bytes)
 
     def _get_mmr_from_key(self, key) -> int:
         result = self._db.get(key)
         if result is not None:
             return int.from_bytes(result, byteorder='big')
 
+    def _keys_for_player(self, player) -> bytes:
+        yield self._key_for_player(player)
+        try:
+            platform = player["id"]["platform"]
+            name = player["name"]
+            yield self._key(name, platform)
+        except KeyError:
+            pass
+
     def _key_for_player(self, player) -> bytes:
-        return self._key(player["name"], player["id"]["platform"])
+        platform = player["id"]["platform"]
+        name = player["id"]["id"]
+        return self._key(name, platform)
 
     def _key(self, player, platform) -> bytes:
-        return json.dumps({"player": player, "platform": platform}).encode('utf-8')
+        return json.dumps({"id": player, "platform": platform}).encode('utf-8')
 
     def _decode_key(self, key_bytes: bytes):
         return json.loads(key_bytes)
@@ -96,12 +114,32 @@ def populate_mmr_cache_from_directory_using_tracker_network(
                 mmr = get_mmr_from_player_meta(player_meta)
             except Exception as e:
                 print("Could not obtain an mmr value for {} due to {}".format(
-                    player_meta["name"], e)
+                    player_meta, e)
                 )
             if mmr is not None:
                 mmr_cache.insert_mmr_for_player(player_meta, mmr)
             else:
-                print("Could not find a value for {}".format(player_meta["name"]))
+                print("Could not find a value for {}".format(player_meta))
         else:
-            player_name = player_meta["name"]
+            mmr_cache.insert_mmr_for_player(player_meta, existing_value)
+            player_name = player_meta
             print(f"Value already present for {player_name}")
+
+
+def populate_mmr_cache_from_directory_using_manifest_rank(filepath):
+    """Populate the mmr cache for a directory using ranks recorded in manifest files."""
+    mmr_cache = MMRCache(filepath)
+    for player_meta in get_all_players_from_replay_directory(filepath):
+        existing_value = mmr_cache.get_mmr_for_player(player_meta)
+        metadata_value = manifest.get_mmr_from_manifest_player(player_meta)
+
+        if metadata_value is not None:
+            if existing_value is not None:
+                if math.fabs(existing_value - metadata_value) > 150:
+                    print(
+                        f"Large difference between api ({existing_value}) and metadata mmr: f{metadata_value}"
+                    )
+        use_value = max([existing_value or 0, metadata_value or 0])
+
+        if use_value > 0:
+            mmr_cache.insert_mmr_for_player(player_meta, use_value)

@@ -45,7 +45,7 @@ class ManifestLoader(object):
         data = self._get_filepath_data(manifest_filepath)
         manifest_game = data[replay_id]
 
-        return _get_mmr_data_from_manifest_game(manifest_game), self._get_player_meta_dict(manifest_game)
+        return get_mmr_data_from_manifest_game(manifest_game), self._get_player_meta_dict(manifest_game)
 
     @staticmethod
     def _get_player_meta_dict(manifest_game):
@@ -53,9 +53,10 @@ class ManifestLoader(object):
             manifest_game["orange"]["players"] + manifest_game["blue"]["players"]
         ))
 
-def _get_mmr_data_from_manifest_game(manifest_game):
+def get_mmr_data_from_manifest_game(manifest_game):
+    """Get an mmr number from the rank/division for each player in a manifest game."""
     return dict(
-        (player["name"], _get_mmr_from_manifest_player(player))
+        (player["name"], get_mmr_from_manifest_player(player))
         for player in (manifest_game["orange"]["players"] + manifest_game["blue"]["players"])
     )
 
@@ -71,6 +72,9 @@ def _rank_tier_and_division_to_mmr(rank_tier, division):
     return rank_tier_map[rank_tier][division - 1]
 
 
-def _get_mmr_from_manifest_player(player):
-    if "rank" in player:
+def get_mmr_from_manifest_player(player):
+    """Get the an mmr number from the rank and division in the provided player meta data."""
+    try:
         return _rank_tier_and_division_to_mmr(player["rank"]["tier"], player["rank"]["division"])
+    except KeyError:
+        pass

@@ -22,6 +22,8 @@ ipdb = "^0.13.13"
 
 [tool.poetry.scripts]
 convert_rl_replay = 'rocket_league_mmr_prediction.console:convert_replay'
+fill_cache_with_tracker_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_tracker_rank'
+fill_cache_with_manifest_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_manifest_rank'
 
 [build-system]
 requires = ["poetry-core"]
