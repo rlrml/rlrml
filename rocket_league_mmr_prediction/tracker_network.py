@@ -4,23 +4,33 @@ import json
 
 
 @functools.cache
-def tracker_curl_for_mmr(uri):
-    get_2v2_mmr_from_api_data(tracker_curl(uri))
+def get_2v2_mmr_from_tracker_curl(uri):
+    """Get the 2v2 mmr field from the json retrieved from the provided uri."""
+    return get_2v2_mmr_from_api_data(tracker_curl(uri))
 
 
 def tracker_curl(uri):
+    """Curl using a subshell, setting a user agent, and loading the result as json."""
     return json.loads(
         subprocess.check_output(['curl', uri, '--user-agent', 'testing'])
     )
 
 
 def get_2v2_mmr_from_api_data(player_data):
-    for segment in player_data["data"]["segments"]:
-        if segment["metadata"]["name"] == "Ranked Doubles 2v2":
-            return float(segment["stats"]["rating"]["value"])
+    """Extract the 2v2 mmr from data retrieved from the tracker api."""
+    if 'errors' in player_data:
+        return None
+    try:
+        for segment in player_data["data"]["segments"]:
+            if segment["metadata"]["name"] == "Ranked Doubles 2v2":
+                return float(segment["stats"]["rating"]["value"])
+    except:
+        import ipdb; ipdb.set_trace()
+        print("Exception on json returned from tracekr api")
 
 
 def get_info_uri_for_player(player):
+    """Get the uri that should be used to retrieve mmr info from the given player dictionary."""
     platform = player["id"]["platform"]
     player_name = player["name"]
     space_replaced = player_name.replace(" ", "%20")
@@ -36,6 +46,5 @@ def get_info_uri_for_player(player):
 
 
 def get_doubles_mmr_from_player_meta(player_meta):
+    """Get a 2v2 mmr from the provided player meta data dictionary."""
     return get_2v2_mmr_from_api_data(tracker_curl(get_info_uri_for_player(player_meta)))
-
-

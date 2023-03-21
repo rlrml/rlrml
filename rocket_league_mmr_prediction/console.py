@@ -15,8 +15,9 @@ def convert_replay():
     import sys
     from . import tracker_network
     from . import player_mmr_cache
-    for player in player_mmr_cache.get_all_players_from_replay_directory(sys.argv[1]):
-        print(tracker_network.get_info_uri_for_player(player))
+    player_mmr_cache.populate_mmr_cache_from_directory_using_tracker_network(
+        sys.argv[1]
+    )
     # data_set = load.ReplayDirectoryDataLoader(sys.argv[1])
     # for i in data_set:
     #     import ipdb; ipdb.set_trace()
