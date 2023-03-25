@@ -29,6 +29,11 @@ def get_2v2_mmr_from_api_data(player_data):
         print("Exception on json returned from tracekr api")
 
 
+def get_mmr_history_uri_by_id(tracker_player_id):
+    """Get the uri at which mmr history for the given player can be found."""
+    return f"https://api.tracker.gg/api/v1/rocket-league/player-history/mmr/{tracker_player_id}"
+
+
 def get_info_uri_for_player(player):
     """Get the uri that should be used to retrieve mmr info from the given player dictionary."""
     platform = player["id"]["platform"]
@@ -48,3 +53,22 @@ def get_info_uri_for_player(player):
 def get_doubles_mmr_from_player_meta(player_meta):
     """Get a 2v2 mmr from the provided player meta data dictionary."""
     return get_2v2_mmr_from_api_data(tracker_curl(get_info_uri_for_player(player_meta)))
+
+
+def get_relevant_info(profile_json):
+    data = profile_json["data"]
+    platform_info = data["platformInfo"]
+    metadata = data["metadata"]
+    return {
+        "platform": platform_info["platformSlug"],
+        "tracker_api_id": metadata["playerId"]
+        
+    }
+
+
+def get_relevant_playlist_info(playlist):
+    stats = playlist["stats"]
+    return {
+        "matches_played": stats["matches_played"]["value"],
+        
+    }
