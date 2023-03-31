@@ -19,7 +19,7 @@ class PlayerNotFoundOnTrackerNetwork:
     string = "PlayerNotFoundOnTrackerNetwork"
 
 
-class PlayerCache(object):
+class PlayerCache:
     """Encapsulates the player cache."""
 
     @classmethod
@@ -69,30 +69,6 @@ class PlayerCache(object):
         """Iterate over the decoded values in the cache."""
         for key_bytes, value_bytes in self._player_id_db.iterator():
             yield self._decode_key(key_bytes), self._decode_value(value_bytes)
-
-
-def get_all_games_from_replay_directory(filepath):
-    """Get all game dictionaries from manifest files contained in the directory at `filepath`."""
-    for manifest_filepath in get_manifest_files(filepath):
-        with open(manifest_filepath) as f:
-            manifest_data = json.loads(f.read())
-        for game in manifest_data.values():
-            yield game
-
-
-def get_all_players_from_replay_directory(filepath):
-    """Get all player dictionaries from manifest files contained in the directory at `filepath`."""
-    for game in get_all_games_from_replay_directory(filepath):
-        for player in itertools.chain(game["orange"]["players"], game["blue"]["players"]):
-            yield player
-
-
-def get_manifest_files(filepath, manifest_filename="manifest.json"):
-    """Get all manifest files in `filepath`."""
-    for root, _, files in os.walk(filepath):
-        for filename in files:
-            if filename == manifest_filename:
-                yield os.path.join(root, filename)
 
 
 def _log_backoff(details):
@@ -151,37 +127,6 @@ def cached_get_from_tracker_network(
         return player_cache.get_info_for_player(player_meta)
 
     return cached_fetch
-
-
-async def populate_player_cache_from_directory_using_tracker_network(filepath, count=50):
-    """Populate the mmr cache for the provided directory using the tracker network."""
-    player_cache = PlayerCache.new_with_cache_directory(filepath)
-    player_data_fetch = tracker_network.TrackerNetwork()
-
-    cached_get = cached_get_from_tracker_network(player_cache, player_data_fetch)
-
-    player_metas = list(get_all_players_from_replay_directory(filepath))
-
-    semaphore = asyncio.Semaphore(2)
-
-    for player_meta in player_metas[:count]:
-        async with semaphore as _:
-            await cached_get(player_meta)
-
-
-async def copy_games_if_metadata_available_and_conditions_met(
-        source_filepath, target_filepath
-):
-    """Copy games from the source_filepath to the target_filepath under appropriate conditions."""
-    player_cache = PlayerCache.new_with_cache_directory(target_filepath)
-    player_data_fetch = tracker_network.TrackerNetwork()
-    checker = CachedPlayerDataAvailabilityChecker(player_cache, player_data_fetch)
-
-    for game in get_all_games_from_replay_directory(source_filepath):
-        player_datas = await checker.get_player_data(game)
-        all_were_dict = all(isinstance(result, dict) for result in player_datas)
-        game_id = game["id"]
-        print(f"{game_id} will be copied over: {all_were_dict}")
 
 
 class CachedPlayerDataAvailabilityChecker:
