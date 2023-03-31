@@ -165,4 +165,4 @@ class CachedPlayerDataAvailabilityChecker:
 
     async def _get_player_data(self, player):
         async with self._semaphore as _:
-            return await self._cached_get(player)
+            return (player, await self._cached_get(player))

@@ -6,6 +6,7 @@ import os
 import itertools
 
 from . import player_cache as pc, tracker_network
+from . import filters
 
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,19 @@ async def copy_games_if_metadata_available_and_conditions_met(
     checker = pc.CachedPlayerDataAvailabilityChecker(player_cache, player_data_fetch)
 
     for game in get_all_games_from_replay_directory(source_filepath):
-        player_datas = await checker.get_player_data(game)
-        all_were_dict = all(isinstance(result, dict) for result in player_datas)
         game_id = game["id"]
-        logger.info(f"{game_id} will be copied over: {all_were_dict}")
+        reason = None
+        player_datas = await checker.get_player_data(game)
+        for player_meta, player_data in player_datas:
+            if not isinstance(player_data, dict):
+                reason = f"Missing data for player {player_meta}"
+                break
+
+            try:
+                filters.get_player_mmr_for_game(
+                    player_data, game, days_after=0, days_before=10
+                )
+            except filters.MMRMinMaxDiscrepancyTooLarge as e:
+                reason = f"MMR filtering {e} {player_meta}"
+
+        logger.info(f"{game_id} will be copied over: {reason is None}, reason: {reason}")
