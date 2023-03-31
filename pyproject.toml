@@ -12,9 +12,9 @@ numpy = "^1.24.2"
 carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
 aiofiles = "^23.1.0"
 nvidia-cuda-cupti-cu11 = "11.7.101"
-httpx = {extras = ["http2"], version = "^0.23.3"}
 plyvel = "^1.5.0"
 backoff = "^2.2.1"
+aiocurl = "^0.0.3.post1"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
@@ -23,7 +23,11 @@ ipdb = "^0.13.13"
 [tool.poetry.scripts]
 convert_rl_replay = 'rocket_league_mmr_prediction.console:convert_replay'
 fill_cache_with_tracker_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_tracker_rank'
-fill_cache_with_manifest_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_manifest_rank'
+# fill_cache_with_manifest_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_manifest_rank'
+test_aiocurl = 'rocket_league_mmr_prediction.console:_test_aiocurl'
+test_filtering = 'rocket_league_mmr_prediction.console:test_result_filtering'
+iter_cache = 'rocket_league_mmr_prediction.console:_iter_cache'
+rlbc_download = 'rocket_league_mmr_prediction.download.console:run'
 
 [build-system]
 requires = ["poetry-core"]

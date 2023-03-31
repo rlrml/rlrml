@@ -29,6 +29,7 @@
               pkgs.poetry
               pkgs.zlib
               pkgs.rocksdb
+              pkgs.curl
             ];
 
             shellHook = ''

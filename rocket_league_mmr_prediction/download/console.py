@@ -31,10 +31,11 @@ def run():
 
     query_params = dict(args.query)
 
+    pretty_params = pprint.PrettyPrinter().pformat(query_params)
+    query_string = f"with query parameters:\n\n {pretty_params}\n"
+
     print(
-        f"\nDownloading {args.count} replays to:\n\n" +
-        f"{args.path}\n\n" +
-        f"with query parameters:\n\n {pprint.PrettyPrinter().pformat(query_params)}\n"
+        f"\nDownloading {args.count} replays to:\n\n{args.path}\n\n{query_string}"
     )
 
     with tqdm.tqdm(total=args.count) as pbar:
