@@ -1,7 +1,7 @@
 """Utilities for filtering games based on their metadata."""
 import datetime
 
-
+#datetime.date.isoformat for comparing -> maps
 SEASON_DATES = {
     1:  ("2020-9-23", "2020-12-9"),
     2:  ("2020-12-9", "2021-4-7"),
