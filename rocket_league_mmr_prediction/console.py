@@ -83,3 +83,11 @@ def _iter_cache(filepath):
     import json
     for player_key, player_data in cache.PlayerCache.new_with_cache_directory(filepath):
         print(json.dumps(player_data))
+
+
+@_call_with_sys_argv
+def copy_games(source, dest):
+    import asyncio
+    task = cache.copy_games_if_metadata_available_and_conditions_met(source, dest)
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(task)

@@ -4,13 +4,16 @@ import aiocurl
 import json
 
 from io import BytesIO
+from email.parser import BytesParser
 
 
 class Non200Exception(Exception):
     """Exception raised when a tracker network http request gives a non-200 response."""
 
-    def __init__(self, status_code):
+    def __init__(self, status_code, response_headers=None):
+        """Initialize the Non200Exception, settings response headers."""
         self.status_code = status_code
+        self.response_headers = response_headers or {}
 
 
 def get_mmr_history_uri_by_id(tracker_player_id):
@@ -27,16 +30,22 @@ def get_profile_uri_for_player(player):
 def get_profile_suffix_for_player(player):
     """Get the suffix to use to generate a players tracker network profile uri."""
     platform = player["id"]["platform"]
+
+    if platform == "steam":
+        return f"steam/{player['id']['id']}"
+
     player_name = player["name"]
     space_replaced = player_name.replace(" ", "%20")
-    if platform == "epic":
-        return f"epic/{space_replaced}"
-    elif platform == "steam":
-        return f"steam/{player['id']['id']}"
-    elif platform == "xbox":
-        return f"xbl/{space_replaced}"
+
+    if platform.startswith("p"):
+        platform = "psn"
+
+    if platform == "xbox":
+        platform = "xbl"
     elif platform.startswith("p"):
-        return f"psn/{space_replaced}"
+        platform = "psn"
+
+    return f"{platform}/{space_replaced}"
 
 
 _tracker_playlist_id_to_name = {
@@ -114,17 +123,24 @@ class TrackerNetwork:
         header_strings = ["{}: {}".format(str(each[0]), str(each[1])) for each in headers.items()]
 
         buf = BytesIO()
+        headers_buf = BytesIO()
         handle = aiocurl.Curl()
 
         handle.setopt(aiocurl.URL, uri)
         handle.setopt(aiocurl.HTTPHEADER, header_strings)
         handle.setopt(aiocurl.WRITEDATA, buf)
+        handle.setopt(aiocurl.HEADERFUNCTION, headers_buf.write)
 
         await self._multi.perform(handle)
 
         status_code = handle.getinfo(aiocurl.HTTP_CODE)
         if status_code != 200:
-            raise Non200Exception(status_code)
+            try:
+                request_line, headers_alone = headers_buf.getvalue().split(b'\r\n', 1)
+                response_headers = dict(BytesParser().parsebytes(headers_alone))
+            except Exception:
+                response_headers = {}
+            raise Non200Exception(status_code, response_headers)
 
         return json.loads(buf.getvalue().decode('utf-8'))
 
