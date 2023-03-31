@@ -2,13 +2,18 @@
 import asyncio
 import sys
 import functools
+import logging
+import coloredlogs
 from . import load
 from . import migration
+from . import logger
 
 
 def _call_with_sys_argv(function):
     @functools.wraps(function)
     def call_with_sys_argv():
+        coloredlogs.install(level='DEBUG', logger=logger)
+        logger.setLevel(logging.DEBUG)
         function(*sys.argv[1:])
     return call_with_sys_argv
 
@@ -19,7 +24,6 @@ def convert_replay(path):
     load._CarballToNumpyConverter(
         load.get_carball_game(path)
     ).get_numpy_array()
-    print("done")
 
 
 @_call_with_sys_argv

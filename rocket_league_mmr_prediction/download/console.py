@@ -3,7 +3,7 @@ import argparse
 import os
 import pprint
 import tqdm
-from .replay_fetcher import ReplayFetcher
+from .replay_downloader import ReplayDownloader
 from .progress import BarProgressHandler
 
 
@@ -39,7 +39,7 @@ def run():
     )
 
     with tqdm.tqdm(total=args.count) as pbar:
-        ReplayFetcher(
+        ReplayDownloader(
             args.auth_token, download_path=args.path, download_count=args.count,
             download_task_count=args.task_count, filter_task_count=args.task_count,
             progress_handler=BarProgressHandler(pbar),

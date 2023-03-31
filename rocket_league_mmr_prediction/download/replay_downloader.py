@@ -16,7 +16,7 @@ def use_replay_id(replay_fetcher, replay_metadata):
     return os.path.join(replay_fetcher.download_path, "{}.replay".format(replay_metadata['id']))
 
 
-class ReplayFetcher(ParallelDownloaderConfig):
+class ReplayDownloader(ParallelDownloaderConfig):
     """A configuration for :py:class:`ParallelDownloader`` to download replays from ballchasing.com.
 
     :param auth_token: An auth_token for ballchasing.com

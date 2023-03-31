@@ -15,6 +15,7 @@ nvidia-cuda-cupti-cu11 = "11.7.101"
 plyvel = "^1.5.0"
 backoff = "^2.2.1"
 aiocurl = "^0.0.3.post1"
+coloredlogs = "^15.0.1"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}

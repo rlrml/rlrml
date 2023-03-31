@@ -72,19 +72,6 @@ def combine_profile_and_mmr_json(data):
     platform_info = profile["platformInfo"]
     metadata = profile["metadata"]
 
-    def get_key_for_segment(segment):
-        the_type = segment["type"]
-
-        name = segment.get("metadata").get("name")
-        print(name)
-        if name is not None:
-            return name
-        elif the_type == "overview":
-            return the_type
-        else:
-            print(f"Unrecognized segment with type {the_type}")
-        return the_type
-
     segments = {
         segment.get("metadata").get("name"): segment
         for segment in profile["segments"]

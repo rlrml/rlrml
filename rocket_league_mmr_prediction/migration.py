@@ -1,10 +1,14 @@
 """Utilities for migrating data between directories and formats."""
 import asyncio
 import json
+import logging
 import os
 import itertools
 
 from . import player_cache as pc, tracker_network
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_all_games_from_replay_directory(filepath):
@@ -59,4 +63,4 @@ async def copy_games_if_metadata_available_and_conditions_met(
         player_datas = await checker.get_player_data(game)
         all_were_dict = all(isinstance(result, dict) for result in player_datas)
         game_id = game["id"]
-        print(f"{game_id} will be copied over: {all_were_dict}")
+        logger.info(f"{game_id} will be copied over: {all_were_dict}")

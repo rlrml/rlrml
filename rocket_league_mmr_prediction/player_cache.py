@@ -3,10 +3,14 @@ import asyncio
 import backoff
 import itertools
 import json
+import logging
 import os
 import plyvel
 
 from . import tracker_network
+
+
+logger = logging.getLogger(__name__)
 
 
 def _use_tracker_url_suffix_as_key(player):
@@ -72,8 +76,8 @@ class PlayerCache:
 
 
 def _log_backoff(details):
-    details = details["exception"]
-    print(f"Backing off {details}")
+    exception = details["exception"]
+    logger.info(f"Backing off {exception}")
 
 
 def _use_retry_after(exception: tracker_network.Non200Exception):
@@ -109,7 +113,7 @@ def cached_get_from_tracker_network(
                 await fetch_with_backoff(player_meta)
             )
         except tracker_network.Non200Exception as e:
-            print("Could not obtain an mmr value for {} due to {}".format(
+            logger.info("Could not obtain an mmr value for {} due to {}".format(
                 player_meta, e
             ))
             if cache_misses and e.status_code != 429:
@@ -117,7 +121,7 @@ def cached_get_from_tracker_network(
                     player_meta, PlayerNotFoundOnTrackerNetwork.string
                 )
         except Exception as e:
-            print("Could not obtain an mmr value for {} due to {}".format(
+            logger.warn("Could not obtain an mmr value for {} due to {}".format(
                 player_meta, e
             ))
         else:
