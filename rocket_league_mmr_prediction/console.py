@@ -12,8 +12,8 @@ from . import logger
 def _call_with_sys_argv(function):
     @functools.wraps(function)
     def call_with_sys_argv():
-        coloredlogs.install(level='DEBUG', logger=logger)
-        logger.setLevel(logging.DEBUG)
+        coloredlogs.install(level='INFO', logger=logger)
+        logger.setLevel(logging.INFO)
         function(*sys.argv[1:])
     return call_with_sys_argv
 
@@ -38,8 +38,15 @@ def fill_cache_with_tracker_rank(filepath):
 def _iter_cache(filepath):
     import json
     from . import player_cache as cache
+    missing_data = 0
+    present_data = 0
     for player_key, player_data in cache.PlayerCache.new_with_cache_directory(filepath):
-        print(json.dumps(player_data))
+        if player_data is cache.PlayerNotFoundOnTrackerNetwork:
+            missing_data += 1
+        else:
+            present_data += 1
+
+    print(f"missing data: {missing_data}, present_data: {present_data}")
 
 
 @_call_with_sys_argv

@@ -60,12 +60,20 @@ async def copy_games_if_metadata_available_and_conditions_met(
     player_data_fetch = tracker_network.TrackerNetwork()
     checker = pc.CachedPlayerDataAvailabilityChecker(player_cache, player_data_fetch)
 
+    included = 0
+    excluded = 0
+    missing_features = {}
     for game in get_all_games_from_replay_directory(source_filepath):
         game_id = game["id"]
         reason = None
         player_datas = await checker.get_player_data(game)
         for player_meta, player_data in player_datas:
             if not isinstance(player_data, dict):
+                suffix = tracker_network.get_profile_suffix_for_player(player_meta)
+                missing_features[suffix] = missing_features.setdefault(suffix, 0) + 1
+                # if missing_features[suffix] > 1:
+                #     logger.warn(f"Retrying {player_meta}")
+                #     await checker._get_player_data(player_meta, retry_tombstones=True)
                 reason = f"Missing data for player {player_meta}"
                 break
 
@@ -73,7 +81,17 @@ async def copy_games_if_metadata_available_and_conditions_met(
                 filters.get_player_mmr_for_game(
                     player_data, game, days_after=0, days_before=10
                 )
-            except filters.MMRMinMaxDiscrepancyTooLarge as e:
+            except filters.MMRFilteringError as e:
                 reason = f"MMR filtering {e} {player_meta}"
 
-        logger.info(f"{game_id} will be copied over: {reason is None}, reason: {reason}")
+        if reason is None:
+            included += 1
+        else:
+            excluded += 1
+
+        logger.debug(f"{game_id} will be copied over: {reason is None}, reason: {reason}")
+        logger.debug(f"included: {included}, excluded: {excluded}")
+
+
+async def retry_missing(filepath):
+    player_cache = pc.PlayerCache.new_with_cache_directory(filepath)

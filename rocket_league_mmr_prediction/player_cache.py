@@ -52,10 +52,7 @@ class PlayerCache:
     def _get_info_from_key(self, key) -> dict:
         result = self._player_id_db.get(key)
         if result is not None:
-            value = json.loads(result)
-            if value == PlayerNotFoundOnTrackerNetwork.string:
-                return PlayerNotFoundOnTrackerNetwork
-            return value
+            return self._decode_value(result)
 
     def _key_for_player(self, player) -> bytes:
         return self._key_fn(player)
@@ -67,7 +64,10 @@ class PlayerCache:
         return key_bytes.decode('utf-8')
 
     def _decode_value(self, value_bytes: bytes) -> int:
-        return json.loads(value_bytes)
+        value = json.loads(value_bytes)
+        if value == PlayerNotFoundOnTrackerNetwork.string:
+            return PlayerNotFoundOnTrackerNetwork
+        return value
 
     def __iter__(self):
         """Iterate over the decoded values in the cache."""
@@ -90,7 +90,7 @@ def _use_retry_after(exception: tracker_network.Non200Exception):
 
 def cached_get_from_tracker_network(
         player_cache: PlayerCache, tracker_network_api: tracker_network.TrackerNetwork,
-        cache_misses=True,
+        cache_misses=True
 ):
     """Return a function that provides a cached fetch for player info from the tracker network."""
     # XXX: choose better exception here
@@ -102,10 +102,12 @@ def cached_get_from_tracker_network(
         jitter=None,
     )(tracker_network_api.get_info_for_player)
 
-    async def cached_fetch(player_meta):
+    async def cached_fetch(player_meta, retry_tombstones=False):
         existing_value = player_cache.get_info_for_player(player_meta)
 
-        if existing_value is not None:
+        if existing_value is not None and (
+                not retry_tombstones or existing_value != PlayerNotFoundOnTrackerNetwork
+        ):
             return existing_value
 
         try:
@@ -113,10 +115,10 @@ def cached_get_from_tracker_network(
                 await fetch_with_backoff(player_meta)
             )
         except tracker_network.Non200Exception as e:
-            logger.info("Could not obtain an mmr value for {} due to {}".format(
+            logger.warn("Could not obtain an mmr value for {} due to {}".format(
                 player_meta, e
             ))
-            if cache_misses and e.status_code != 429:
+            if cache_misses and e.status_code == 404:
                 player_cache.insert_info_for_player(
                     player_meta, PlayerNotFoundOnTrackerNetwork.string
                 )
@@ -125,6 +127,8 @@ def cached_get_from_tracker_network(
                 player_meta, e
             ))
         else:
+            if existing_value == PlayerNotFoundOnTrackerNetwork:
+                logger.warn(f"Found value for {player_meta} that was not found")
             player_info["player_metadata"] = player_meta
             player_cache.insert_info_for_player(player_meta, player_info)
 
@@ -150,12 +154,12 @@ class CachedPlayerDataAvailabilityChecker:
         )
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def check_for_player_data(self, game) -> bool:
+    async def check_for_player_data(self, game, **kwargs) -> bool:
         """Check that we have player mmr data for all players in the game."""
-        results = await self.get_player_data(game)
+        results = await self.get_player_data(game, **kwargs)
         return all(isinstance(result, dict) for result in results)
 
-    async def get_player_data(self, game):
+    async def get_player_data(self, game, **kwargs):
         """Get player data for each player in the provided game."""
         all_players = itertools.chain(game["orange"]["players"], game["blue"]["players"])
 
@@ -163,6 +167,6 @@ class CachedPlayerDataAvailabilityChecker:
             *[self._get_player_data(player) for player in all_players]
         )
 
-    async def _get_player_data(self, player):
+    async def _get_player_data(self, player, **kwargs):
         async with self._semaphore as _:
-            return (player, await self._cached_get(player))
+            return (player, await self._cached_get(player, **kwargs))

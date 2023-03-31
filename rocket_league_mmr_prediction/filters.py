@@ -2,17 +2,37 @@
 import datetime
 
 
+SEASON_DATES = {
+    1:  ("2020-9-23", "2020-12-9"),
+    2:  ("2020-12-9", "2021-4-7"),
+    3:  ("2021-4-7", "2021-8-11"),
+    4:  ("2021-8-11", "2021-11-17"),
+    5:  ("2021-11-17", "2022-3-9"),
+    6:  ("2022-3-9", "2022-6-15"),
+    7:  ("2022-6-15", "2022-9-7"),
+    8:  ("2022-9-7", "2022-12-7"),
+    9:  ("2022-12-7", "2023-3-8"),
+    10: ("2023-3-8", "2023-6-7"),
+}
+
+
 class MMRFilteringError(Exception):
+    """An error relating to the filtering of games and players to do with MMR."""
+
     pass
 
 
 class NoMMRHistory(MMRFilteringError):
+    """No MMR History was found for the player."""
+
     pass
+
 
 class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
     """Exception that is raised when max mmr exceeds min mmr by too much."""
 
     def __init__(self, min_mmr, max_mmr):
+        """Initialize and record the minimum and maximum MMR."""
         self.min_mmr = min_mmr
         self.max_mmr = max_mmr
 
