@@ -10,6 +10,7 @@ from sdbus_block import networkmanager as nm
 from . import load
 from . import migration
 from . import logger
+from . import filters
 
 
 def _call_with_sys_argv(function):
@@ -47,13 +48,21 @@ def _iter_cache(filepath):
     missing_data = 0
     present_data = 0
     for player_key, player_data in cache.PlayerCache.new_with_cache_directory(filepath):
+        if present_data > 5:
+            break
+        try:
+            filters.test_mmr(player_data, player_key)
+        except filters.NotInTrackerNetwork:
+            pass
+            #print('failed for: ', player_key)
+        except filters.NoMMRHistory:
+            pass
         if player_data is cache.PlayerNotFoundOnTrackerNetwork:
             missing_data += 1
         else:
             present_data += 1
 
     print(f"missing data: {missing_data}, present_data: {present_data}")
-
 
 @_call_with_sys_argv
 def _copy_games(source, dest):

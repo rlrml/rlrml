@@ -17,6 +17,10 @@ backoff = "^2.2.1"
 aiocurl = "^0.0.3.post1"
 coloredlogs = "^15.0.1"
 sdbus-networkmanager = "^1.1.0"
+aiohttp = "^3.8.4"
+tqdm = "^4.65.0"
+matplotlib = "^3.7.1"
+tk = "^0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}

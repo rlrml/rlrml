@@ -28,7 +28,7 @@
           buildInputs = [
               pkgs.poetry
               pkgs.zlib
-              pkgs.rocksdb
+              pkgs.rustup
               pkgs.curl
             ];
 
