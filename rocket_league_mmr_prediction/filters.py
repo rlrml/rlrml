@@ -68,15 +68,29 @@ def test_mmr(player_data, player_key):
 
     mmrs = np.array([mmr for _, mmr in mmr_history])
     dates = np.array([datetime.strptime(date.split('T')[0], '%Y-%m-%d') for date, _ in mmr_history])
+    mmrs = mmrs[np.argsort(dates)]
+    dates = np.sort(dates)
 
     seasons = np.array([datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
-    seasons = seasons[(seasons >= min(dates)) & (seasons <= max(dates))]
+    seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
 
-    mmr = player_mmr_function(mmrs)
+    #mmr = player_mmr_function(mmrs, seasons)
+
+    mmr_by_season = []
+    mmr_s_dates = []
+    for i in range(len(seasons)-1):
+        idx1 = np.where(dates > seasons[i])[0][0]
+        idx2 = np.where(dates > seasons[i+1])[0][0]
+        mmr_by_season.append(mmrs[idx1:idx2])
+        mmr_s_dates.append(dates[idx1:idx2])
+    mmr_by_season.append(mmrs[np.where(dates > seasons[-1])[0][0]:])
+    mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
 
     plt.clf()
-    plt.plot(np.sort(dates), mmrs[np.argsort(dates)])
-    plt.axhline(y=mmr, color='green')
+    for i in range(len(mmr_by_season)):
+        plt.plot(mmr_s_dates[i], mmr_by_season[i])
+        mmr = player_mmr_function(mmr_by_season[i])
+        plt.hlines(y=mmr, xmin=min(mmr_s_dates[i]), xmax=max(mmr_s_dates[i]))
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
