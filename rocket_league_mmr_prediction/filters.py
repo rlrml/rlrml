@@ -1,6 +1,5 @@
 """Utilities for filtering games based on their metadata."""
 import datetime
-from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -70,11 +69,11 @@ def test_mmr(player_data, player_key):
         raise NoMMRHistory()
 
     mmrs = np.array([mmr for _, mmr in mmr_history])
-    dates = np.array([datetime.strptime(date.split('T')[0], '%Y-%m-%d') for date, _ in mmr_history])
+    dates = np.array([datetime.datetime.strptime(date.split('T')[0], '%Y-%m-%d') for date, _ in mmr_history])
     mmrs = mmrs[np.argsort(dates)]
     dates = np.sort(dates)
 
-    seasons = np.array([datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
+    seasons = np.array([datetime.datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
     seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
 
     #mmr = player_mmr_function(mmrs, seasons)
