@@ -1,10 +1,14 @@
 """Utilities for getting data from TrackerNetwork's public API."""
-import asyncio
 import aiocurl
+import backoff
 import json
+import logging
 
 from io import BytesIO
 from email.parser import BytesParser
+
+
+logger = logging.getLogger(__name__)
 
 
 class Non200Exception(Exception):
@@ -34,7 +38,11 @@ def get_profile_suffix_for_player(player):
     if platform == "steam":
         return f"steam/{player['id']['id']}"
 
-    player_name = player["name"]
+    try:
+        player_name = player["name"]
+    except KeyError:
+        return None
+
     space_replaced = player_name.replace(" ", "%20")
 
     if platform.startswith("p"):
@@ -131,7 +139,7 @@ class TrackerNetwork:
 
         return json.loads(buf.getvalue().decode('utf-8'))
 
-    async def get_info_for_player(self, player):
+    async def get_player_data(self, player):
         """Combine info from the main player page and the mmr history player page."""
         uri = get_profile_uri_for_player(player)
         profile_result = await self.get_tracker_json(uri)
@@ -147,9 +155,35 @@ class TrackerNetwork:
             "mmr": mmr_result,
         }
 
-    async def get_info_for_players(self, players):
-        """Return info for the requested players."""
-        results = await asyncio.gather(
-            *[self.get_info_for_player(player) for player in players]
-        )
-        return results
+    async def get_player_data_with_auto_reset(self, player):
+        """Call get_player_data and reset internal aiocurl components 1 time on exception."""
+        try:
+            return await self.get_player_data(player)
+        except aiocurl.error as e:
+            logger.warn(f"Encountered {e} on get_player_data, retrying")
+            self._multi = aiocurl.CurlMulti()
+            return await self.get_player_data(player)
+
+
+def _log_backoff(details):
+    exception = details["exception"]
+    logger.info(f"Backing off {exception}")
+
+
+def _use_retry_after(exception: Non200Exception):
+    string_value = exception.response_headers.get('retry-after') or \
+        exception.response_headers.get('Retry-After')
+    if string_value is None:
+        return 60
+    return int(string_value)
+
+
+def get_player_data_with_429_retry(get_player_data=TrackerNetwork().get_player_data):
+    """Wrap the provided getter with 429 backoff that uses the retry-after header."""
+    return backoff.on_exception(
+        backoff.runtime, Non200Exception, max_time=300,
+        giveup=lambda e: e.status_code != 429,
+        on_backoff=_log_backoff,
+        value=_use_retry_after,
+        jitter=None,
+    )(get_player_data)

@@ -1249,6 +1249,34 @@ dev = ["build (>=0.7.0)", "pre-commit (>=2.20.0)", "pytest (>=7.0.1)", "pytest-t
 doc = ["pytoolconfig[doc]", "sphinx (>=4.5.0)", "sphinx-autodoc-typehints (>=1.18.1)", "sphinx-rtd-theme (>=1.0.0)"]
 
 [[package]]
+name = "sdbus"
+version = "0.11.0"
+description = "Modern Python D-Bus library. Based on sd-bus from libsystemd."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "sdbus-0.11.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:77ee2f66ef3effc14d000aeecbb91669d1e65eae41049cf4f25d02926fb40029"},
+    {file = "sdbus-0.11.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d624275e0e874558cc31743f68a26051c566dcfe6d948b4ac9b51cc35aafbb4f"},
+    {file = "sdbus-0.11.0.tar.gz", hash = "sha256:f86fbadae54fea6441ec2f27dc29daf085269d66c5d9df1a4fbc9474a24b91d0"},
+]
+
+[[package]]
+name = "sdbus-networkmanager"
+version = "1.1.0"
+description = "NetworkManager binds for sdbus."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "sdbus-networkmanager-1.1.0.tar.gz", hash = "sha256:2a5304bf689efe5c2535b15e3cf45a09e08a762a5ad93a845444a882097f075e"},
+    {file = "sdbus_networkmanager-1.1.0-py3-none-any.whl", hash = "sha256:2a023cdacd5b2fca4da2eabd02ca6d0d7cafeb9b7b309d76d8f1b2aabe1da06f"},
+]
+
+[package.dependencies]
+sdbus = ">=0.8rc2"
+
+[[package]]
 name = "setuptools"
 version = "67.6.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
@@ -1683,4 +1711,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "0003b9e04c165245058bb1437b487bcb3f01e88f5ce5bfc6213eaf40a0bc1d02"
+content-hash = "349608488c5e454103bb39d6cb3366a6d614c0923b5cc7ef80761478a4b4f95d"

@@ -4,6 +4,9 @@ import sys
 import functools
 import logging
 import coloredlogs
+
+from sdbus_block import networkmanager as nm
+
 from . import load
 from . import migration
 from . import logger
@@ -19,11 +22,14 @@ def _call_with_sys_argv(function):
 
 
 @_call_with_sys_argv
-def convert_replay(path):
+def convert_replay():
     """Convert the game provided through sys.argv."""
-    load._CarballToNumpyConverter(
-        load.get_carball_game(path)
-    ).get_numpy_array()
+    from . import vpn
+    import sdbus
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
+    cycler = vpn.VPNCycler()
+    import ipdb; ipdb.set_trace()
+    print(nm.all_devices)
 
 
 @_call_with_sys_argv
