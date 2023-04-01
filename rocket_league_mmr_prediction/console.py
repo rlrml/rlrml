@@ -7,7 +7,6 @@ import coloredlogs
 
 from sdbus_block import networkmanager as nm
 
-from . import load
 from . import migration
 from . import logger
 from . import filters
@@ -62,7 +61,6 @@ def _iter_cache(filepath):
         else:
             present_data += 1
 
-    print(f"missing data: {missing_data}, present_data: {present_data}")
 
 @_call_with_sys_argv
 def _copy_games(source, dest):

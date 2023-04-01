@@ -6,6 +6,7 @@ import tqdm
 from .replay_downloader import ReplayDownloader
 from .progress import BarProgressHandler
 
+
 def run():
     """Entry point to the command line interface to ballchasing_replay_fetcher."""
     parser = argparse.ArgumentParser()

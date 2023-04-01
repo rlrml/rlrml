@@ -171,7 +171,6 @@ class ParallelDownloader:
         self._config.progress_handler.item_list_updated(tasks, self)
         for task_meta in tasks:
             await self._filter_queue.put(task_meta)
-        # TODO: progress handler callback
 
     async def _update_progress(self):
         while self._number_of_items_left_to_download > 0:

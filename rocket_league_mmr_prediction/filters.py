@@ -2,14 +2,13 @@
 import datetime
 from datetime import datetime
 import matplotlib.pyplot as plt
-import os
 import numpy as np
 
-#datetime.date.isoformat for comparing -> maps
+
 SEASON_DATES = {
     1:  ("2020-09-23", "2020-12-09"),
     2:  ("2020-12-09", "2021-04-07"),
-    3:  ("2021-04-07", "2021-8-11"),
+    3:  ("2021-04-07", "2021-08-11"),
     4:  ("2021-08-11", "2021-11-17"),
     5:  ("2021-11-17", "2022-03-09"),
     6:  ("2022-03-09", "2022-06-15"),
@@ -25,13 +24,16 @@ class MMRFilteringError(Exception):
 
     pass
 
+
 class NotInTrackerNetwork(Exception):
     pass
+
 
 class NoMMRHistory(MMRFilteringError):
     """No MMR History was found for the player."""
 
     pass
+
 
 class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
     """Exception that is raised when max mmr exceeds min mmr by too much."""
@@ -40,6 +42,7 @@ class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
         """Initialize and record the minimum and maximum MMR."""
         self.min_mmr = min_mmr
         self.max_mmr = max_mmr
+
 
 '''
 player_data = {
@@ -96,6 +99,7 @@ def test_mmr(player_data, player_key):
     plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
     plt.title(player_key)
     plt.savefig('./plots/' + str(player_key) + '.png', bbox_inches='tight')
+
 
 def player_mmr_function(mmrs):
     return np.mean(mmrs)
