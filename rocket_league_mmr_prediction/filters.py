@@ -1,18 +1,22 @@
 """Utilities for filtering games based on their metadata."""
 import datetime
+from datetime import datetime
+import matplotlib.pyplot as plt
+import os
+import numpy as np
 
 #datetime.date.isoformat for comparing -> maps
 SEASON_DATES = {
-    1:  ("2020-9-23", "2020-12-9"),
-    2:  ("2020-12-9", "2021-4-7"),
-    3:  ("2021-4-7", "2021-8-11"),
-    4:  ("2021-8-11", "2021-11-17"),
-    5:  ("2021-11-17", "2022-3-9"),
-    6:  ("2022-3-9", "2022-6-15"),
-    7:  ("2022-6-15", "2022-9-7"),
-    8:  ("2022-9-7", "2022-12-7"),
-    9:  ("2022-12-7", "2023-3-8"),
-    10: ("2023-3-8", "2023-6-7"),
+    1:  ("2020-09-23", "2020-12-09"),
+    2:  ("2020-12-09", "2021-04-07"),
+    3:  ("2021-04-07", "2021-8-11"),
+    4:  ("2021-08-11", "2021-11-17"),
+    5:  ("2021-11-17", "2022-03-09"),
+    6:  ("2022-03-09", "2022-06-15"),
+    7:  ("2022-06-15", "2022-09-07"),
+    8:  ("2022-09-07", "2022-12-07"),
+    9:  ("2022-12-07", "2023-03-08"),
+    10: ("2023-03-08", "2023-06-07"),
 }
 
 
@@ -21,12 +25,13 @@ class MMRFilteringError(Exception):
 
     pass
 
+class NotInTrackerNetwork(Exception):
+    pass
 
 class NoMMRHistory(MMRFilteringError):
     """No MMR History was found for the player."""
 
     pass
-
 
 class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
     """Exception that is raised when max mmr exceeds min mmr by too much."""
@@ -35,6 +40,51 @@ class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
         """Initialize and record the minimum and maximum MMR."""
         self.min_mmr = min_mmr
         self.max_mmr = max_mmr
+
+'''
+player_data = {
+    platform,
+    tracker_api_id,
+    last_updated,
+    stats,
+    playlists,
+    mmr_history,
+    player_metadata
+}
+player_data['mmr_history'] = {
+    Ranked Duel 1v1,
+    Ranked Doubles 2v2,
+    Ranked Standard 3v3
+}
+'''
+def test_mmr(player_data, player_key):
+    if not isinstance(player_data, dict):
+        raise NotInTrackerNetwork
+
+    try:
+        mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
+    except:
+        raise NoMMRHistory()
+
+    mmrs = np.array([mmr for _, mmr in mmr_history])
+    dates = np.array([datetime.strptime(date.split('T')[0], '%Y-%m-%d') for date, _ in mmr_history])
+
+    seasons = np.array([datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
+    seasons = seasons[(seasons >= min(dates)) & (seasons <= max(dates))]
+
+    mmr = player_mmr_function(mmrs)
+
+    plt.clf()
+    plt.plot(np.sort(dates), mmrs[np.argsort(dates)])
+    plt.axhline(y=mmr, color='green')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
+    plt.title(player_key)
+    plt.savefig('./plots/' + str(player_key) + '.png', bbox_inches='tight')
+
+def player_mmr_function(mmrs):
+    return np.mean(mmrs)
 
 
 def _get_start_date_and_end_date(game_data, days_before, days_after):
