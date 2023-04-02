@@ -4,6 +4,7 @@ import backoff
 import cloudscraper
 import json
 import logging
+import requests
 
 from io import BytesIO
 from email.parser import BytesParser
@@ -113,13 +114,26 @@ class CloudScraperTrackerNetwork:
         """Initialize this class."""
         self._scraper = scraper or cloudscraper.create_scraper(delay=1, browser="chrome")
 
-    def _get(self, *args, **kwargs):
-        resp = self._scraper.get(*args, **kwargs)
+    def refresh_scraper(self):
+        """Make a new scraper."""
+        self._scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
+
+    def __get(self, uri):
+        logger.info(f"Cloud scraper request {uri}")
+        resp = self._scraper.get(uri, timeout=6)
         if resp.status_code != 200:
             raise Non200Exception(resp.status_code, resp.headers)
         return resp.json()
 
-    async def get_player_data(self, player):
+    def _get(self, uri):
+        try:
+            return self.__get(uri)
+        except requests.exceptions.Timeout:
+            logger.warn("Trying refreshing scraper after a timeout")
+            self.refresh_scraper()
+            return self.__get(uri)
+
+    def get_player_data(self, player):
         """Combine info from the main player page and the mmr history player page."""
         uri = get_profile_uri_for_player(player)
         profile_result = self._get(uri)

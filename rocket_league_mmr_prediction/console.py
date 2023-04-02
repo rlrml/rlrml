@@ -64,6 +64,6 @@ def _iter_cache(filepath):
 
 @_call_with_sys_argv
 def _copy_games(source, dest):
-    task = migration.copy_games_if_metadata_available_and_conditions_met(source, dest)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(task)
+    import sdbus
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
+    migration.copy_games_if_metadata_available_and_conditions_met(source, dest)

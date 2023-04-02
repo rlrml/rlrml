@@ -1,5 +1,11 @@
 import backoff
+import logging
+import random
+
 from sdbus_block import networkmanager as nm
+
+
+logger = logging.getLogger(__name__)
 
 
 def _any_vpn(connection_settings):
@@ -28,6 +34,7 @@ class VPNCycler:
             (path, nm.NetworkConnectionSettings(path))
             for path in self._settings.list_connections()
         ]
+        random.shuffle(connections)
 
         self._connections = [
             connection for connection in connections
@@ -55,7 +62,11 @@ class VPNCycler:
             self._active_connection_index = \
                 (self._active_connection_index + 1) % len(self._connections)
 
+        logger.info("Deactivating connections")
+
         self._deactivate_unselected_connections()
+
+        logger.info("Activating new connection")
         self._activate_connection(self._active_connection[0])
 
     def _deactivate_connection(self, path):

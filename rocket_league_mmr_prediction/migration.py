@@ -7,6 +7,7 @@ import itertools
 
 from . import player_cache as pc, tracker_network
 from . import filters
+from . import util
 
 
 logger = logging.getLogger(__name__)
@@ -36,27 +37,24 @@ def get_manifest_files(filepath, manifest_filename="manifest.json"):
                 yield os.path.join(root, filename)
 
 
-async def copy_games_if_metadata_available_and_conditions_met(
+def copy_games_if_metadata_available_and_conditions_met(
         source_filepath, target_filepath
 ):
     """Copy games from the source_filepath to the target_filepath under appropriate conditions."""
-    player_cache = pc.PlayerCache.new_with_cache_directory(target_filepath)
-    player_data_fetch = tracker_network.CloudScraperTrackerNetwork()
-    backoff_get = tracker_network.get_player_data_with_429_retry(
-        player_data_fetch.get_player_data
-    )
-    cached_backoff_get = pc.CachedGetPlayerData(player_cache, backoff_get)
 
-    checker = PlayerDataConcurrencyLimiter(cached_backoff_get.get_player_data)
+    get_player_data = util.vpn_cycled_cached_player_get(target_filepath)
 
     included = 0
     excluded = 0
     missing_features = {}
+
     for game in get_all_games_from_replay_directory(source_filepath):
         game_id = game["id"]
         reason = None
-        player_datas = await checker.get_player_data_for_game(game)
-        for player_meta, player_data in player_datas:
+        all_players = itertools.chain(game["orange"]["players"], game["blue"]["players"])
+        for player_meta in all_players:
+            player_data = get_player_data(player_meta)
+
             if not isinstance(player_data, dict):
                 suffix = tracker_network.get_profile_suffix_for_player(player_meta)
                 missing_features[suffix] = missing_features.setdefault(suffix, 0) + 1

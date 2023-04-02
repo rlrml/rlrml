@@ -125,7 +125,7 @@ class CachedGetPlayerData:
         self._retry_tombstones = retry_tombstones
         self._cache_misses = cache_misses
 
-    async def get_player_data(self, player_meta):
+    def get_player_data(self, player_meta):
         """Get player data from cache or get_player_data."""
         try:
             return self._player_cache.get_player_data(player_meta)
@@ -138,7 +138,7 @@ class CachedGetPlayerData:
                 return None
 
         try:
-            player_data = await self._get_player_data(player_meta)
+            player_data = self._get_player_data(player_meta)
         except tracker_network.Non200Exception as e:
             logger.warn("Could not obtain an mmr value for {} due to {}".format(
                 player_meta, e
