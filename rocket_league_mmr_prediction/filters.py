@@ -116,7 +116,7 @@ def plot_mmr(player_data, player_key, fig: Figure):
 
     for i in range(len(seasons) - 1):
         idx1 = np.where(dates > seasons[i])[0][0]
-        idx2 = np.where(dates > seasons[i + 1])[0][0]
+        idx2 = np.where(dates >= seasons[i + 1])[0][0]
         mmr_by_season.append(mmrs[idx1:idx2])
         mmr_s_dates.append(dates[idx1:idx2])
 
