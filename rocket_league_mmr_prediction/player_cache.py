@@ -139,6 +139,7 @@ class CachedGetPlayerData:
         except PlayerCacheMissError:
             pass
         except PlayerCacheStoredError as e:
+            logger.warn(f"Stored error {e}")
             if "__oldform__" in e.data:
                 pass
             elif e.data["type"] in self._retry_errors:

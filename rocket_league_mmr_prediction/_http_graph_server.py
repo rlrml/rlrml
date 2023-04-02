@@ -2,7 +2,8 @@ import base64
 import logging
 from io import BytesIO
 
-from flask import Flask, request
+from flask import Flask, request, redirect
+from markupsafe import escape
 from matplotlib.figure import Figure
 
 from . import player_cache as pc
@@ -22,32 +23,31 @@ def _img_from_fig(fig: Figure):
 
 
 def make_routes(filepath):
-
+    """Build the routes to serve mmr graphs with the provided cache filepath."""
     cache = pc.PlayerCache.new_with_cache_directory(filepath)
-
-    cached_get = pc.CachedGetPlayerData(
-        cache, CloudScraperTrackerNetwork().get_player_data
-    ).get_player_data
 
     @app.route("/at/<platform>/<player_name>")
     def starting_at(platform, player_name):
         return at(f"{platform}/{player_name}", double_dot=True)
 
     @app.route("/at/<player_key>")
-    def at(player_key, double_dot=False):
-        if request.args.get("fetch", default=False):
-            try:
-                cached_get({"__tracker_suffix__": player_key})
-            except Exception as e:
-                logger.warn(f"Exception when doing cached_get {e}")
-                pass
+    def at(target_player_key, double_dot=False):
+        try:
+            pc.CachedGetPlayerData(
+                cache, CloudScraperTrackerNetwork().get_player_data
+            ).get_player_data({"__tracker_suffix__": target_player_key})
+        except Exception as e:
+            logger.warn(f"Exception when doing cached_get {e}")
 
-        count = request.args.get("count", default=1)
+        count = int(request.args.get("count", default=3))
         elements = []
-        for (player_key, player_data) in cache.iterator(start=player_key.encode('utf-8')):
-            print(f"fhecking {player_key}")
+        for (player_key, player_data) in cache.iterator(start=target_player_key.encode('utf-8')):
             if len(elements) >= count:
-                break
+                # Cycle the player key until we have one that is actualy new.
+                if player_key == target_player_key:
+                    continue
+                else:
+                    break
 
             fig = Figure()
 
@@ -63,32 +63,13 @@ def make_routes(filepath):
         last_player_key = player_key
 
         dd_str = "../" if double_dot else ""
-        elements.append(f'<div><a href="{dd_str}../at/{last_player_key}">next</a></div>')
+        logger.warn(f"{target_player_key}, {last_player_key}")
+        elements.append(
+            f'<div><a href="{dd_str}../at/{escape(last_player_key)}">next</a></div>'
+        )
 
         return "\n<br><br>".join(elements)
 
     @app.route("/")
-    def _hello():
-        images = []
-        for i, (player_key, player_data) in enumerate(cache):
-            if len(images) > 9:
-                break
-
-            try:
-                player_data['mmr_history']['Ranked Doubles 2v2']
-            except:
-                continue
-
-            fig = Figure()
-
-            try:
-                filters.plot_mmr(player_data, player_key, fig)
-            except:
-                continue
-
-            player_info = player_data["platform"]
-            images.append(f"<div>{player_info}{_img_from_fig(fig)}")
-
-        # Embed the result in the html output.
-
-        return "<br><br>\n".join(images)
+    def root():
+        return redirect("/at/0")
