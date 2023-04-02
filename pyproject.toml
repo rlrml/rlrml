@@ -21,6 +21,7 @@ aiohttp = "^3.8.4"
 tqdm = "^4.65.0"
 matplotlib = "^3.7.1"
 tk = "^0.1.0"
+cloudscraper = "^1.2.69"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}

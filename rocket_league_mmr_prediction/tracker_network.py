@@ -1,6 +1,7 @@
 """Utilities for getting data from TrackerNetwork's public API."""
 import aiocurl
 import backoff
+import cloudscraper
 import json
 import logging
 
@@ -105,7 +106,35 @@ def combine_profile_and_mmr_json(data):
     }
 
 
-class TrackerNetwork:
+class CloudScraperTrackerNetwork:
+    """Use the cloudscraper library to perform requests to the tracker network."""
+
+    def __init__(self, scraper=None):
+        """Initialize this class."""
+        self._scraper = scraper or cloudscraper.create_scraper(delay=1, browser="chrome")
+
+    def _get(self, *args, **kwargs):
+        resp = self._scraper.get(*args, **kwargs)
+        if resp.status_code != 200:
+            raise Non200Exception(resp.status_code, resp.headers)
+        return resp.json()
+
+    async def get_player_data(self, player):
+        """Combine info from the main player page and the mmr history player page."""
+        uri = get_profile_uri_for_player(player)
+        profile_result = self._get(uri)
+        tracker_api_id = profile_result["data"]["metadata"]["playerId"]
+
+        mmr_history_uri = get_mmr_history_uri_by_id(tracker_api_id)
+        mmr_result = self._get(mmr_history_uri)
+
+        return {
+            "profile": profile_result,
+            "mmr": mmr_result,
+        }
+
+
+class CurlTrackerNetwork:
     """Use the low level aiocurl api to perform requests to the tracker network."""
 
     def __init__(self, multi=None):
@@ -160,7 +189,6 @@ class TrackerNetwork:
         try:
             return await self.get_player_data(player)
         except aiocurl.error as e:
-            import ipdb; ipdb.set_trace()
             logger.warn(f"Encountered {e} on get_player_data, retrying")
             self._multi = aiocurl.CurlMulti()
             return await self.get_player_data(player)
@@ -179,7 +207,7 @@ def _use_retry_after(exception: Non200Exception):
     return int(string_value)
 
 
-def get_player_data_with_429_retry(get_player_data=TrackerNetwork().get_player_data):
+def get_player_data_with_429_retry(get_player_data=CloudScraperTrackerNetwork().get_player_data):
     """Wrap the provided getter with 429 backoff that uses the retry-after header."""
     return backoff.on_exception(
         backoff.runtime, Non200Exception, max_time=300,

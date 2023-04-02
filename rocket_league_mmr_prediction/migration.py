@@ -41,9 +41,9 @@ async def copy_games_if_metadata_available_and_conditions_met(
 ):
     """Copy games from the source_filepath to the target_filepath under appropriate conditions."""
     player_cache = pc.PlayerCache.new_with_cache_directory(target_filepath)
-    player_data_fetch = tracker_network.TrackerNetwork()
+    player_data_fetch = tracker_network.CloudScraperTrackerNetwork()
     backoff_get = tracker_network.get_player_data_with_429_retry(
-        player_data_fetch.get_player_data_with_auto_reset
+        player_data_fetch.get_player_data
     )
     cached_backoff_get = pc.CachedGetPlayerData(player_cache, backoff_get)
 
