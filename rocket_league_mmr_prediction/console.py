@@ -93,3 +93,12 @@ def host_plots(filepath):
     from . import _http_graph_server
     _http_graph_server.make_routes(filepath)
     _http_graph_server.app.run(port=5001)
+
+
+@_call_with_sys_argv
+def get_player(filepath, player_key):
+    import sdbus
+    from . import util
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
+    player_get = util.vpn_cycled_cached_player_get(filepath)
+    print(player_get({"__tracker_suffix__": player_key})["platform"])
