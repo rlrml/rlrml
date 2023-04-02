@@ -59,6 +59,40 @@ player_data['mmr_history'] = {
     Ranked Standard 3v3
 }
 '''
+def test_mmr_no_plot(player_data, player_key=None, seasons_avg=[8,9]):
+    if not isinstance(player_data, dict):
+        raise NotInTrackerNetwork
+
+    try:
+        mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
+    except:
+        raise NoMMRHistory()
+
+    mmrs = np.array([mmr for _, mmr in mmr_history])
+    dates = np.array([datetime.strptime(date.split('T')[0], '%Y-%m-%d') for date, _ in mmr_history])
+    mmrs = mmrs[np.argsort(dates)]
+    dates = np.sort(dates)
+
+    seasons = np.array([datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
+    seasons_avg -= 1
+    seasons = [seasons_avg]
+    seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
+
+    mmr_by_season = []
+    #mmr_s_dates = []
+    for i in range(len(seasons)-1):
+        idx1 = np.where(dates > seasons[i])[0][0]
+        idx2 = np.where(dates > seasons[i+1])[0][0]
+        mmr_by_season.append(player_mmr_function(mmrs[idx1:idx2]))
+        #mmr_s_dates.append(dates[idx1:idx2])
+    mmr_by_season.append(player_mmr_function(mmrs[np.where(dates > seasons[-1])[0][0]:]))
+    #mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
+
+    #mmr1, slope = player_mmr_function(mmr_by_season[-1])
+    #mmr2, slope = player_mmr_function(mmr_by_season[-2])
+
+    return np.mean(mmr_by_season)
+
 def test_mmr(player_data, player_key):
     if not isinstance(player_data, dict):
         raise NotInTrackerNetwork
@@ -90,9 +124,11 @@ def test_mmr(player_data, player_key):
 
     plt.clf()
     for i in range(len(mmr_by_season)):
-        plt.plot(mmr_s_dates[i], mmr_by_season[i])
-        mmr = player_mmr_function(mmr_by_season[i])
-        plt.hlines(y=mmr, xmin=min(mmr_s_dates[i]), xmax=max(mmr_s_dates[i]))
+        plt.plot(mmr_s_dates[i], mmr_by_season[i], color='blue')
+        mmr, slope = player_mmr_function(mmr_by_season[i])
+        plt.plot([mmr_s_dates[i][0], mmr_s_dates[i][-1]], [mmr_by_season[i][0], mmr_by_season[i][0] + slope], color='orange')
+        plt.hlines(y=np.mean(mmr_by_season[i]), xmin=min(mmr_s_dates[i]), xmax=max(mmr_s_dates[i]), color='red')
+        plt.hlines(y=mmr, xmin=min(mmr_s_dates[i]), xmax=max(mmr_s_dates[i]), color='green')
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
@@ -101,8 +137,12 @@ def test_mmr(player_data, player_key):
 
 
 def player_mmr_function(mmrs):
-    return np.mean(mmrs)
+    slope = mmrs[-1] - mmrs[0]
+    #for i in range(1, len(mmrs)):
+    #    slope += mmrs[i] - mmrs[i-1]
+    ratio = (slope - np.std(mmrs)) / (max(mmrs) - min(mmrs))
 
+    return np.mean(mmrs) + (abs(ratio) * (mmrs[-1] - mmrs[0]))/2, slope
 
 def _get_start_date_and_end_date(game_data, days_before, days_after):
     try:
