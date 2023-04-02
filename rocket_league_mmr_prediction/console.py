@@ -92,4 +92,4 @@ def host_plots(filepath):
     """Run an http server that hosts plots of player mmr that in the cache."""
     from . import _http_graph_server
     _http_graph_server.make_routes(filepath)
-    _http_graph_server.app.run()
+    _http_graph_server.app.run(port=5001)

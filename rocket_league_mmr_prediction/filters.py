@@ -124,32 +124,33 @@ def plot_mmr(player_data, player_key, fig: Figure):
     mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
 
     fig.clf()
+    plt = fig.subplots()
 
     for i in range(len(mmr_by_season)):
-        fig.plot(mmr_s_dates[i], mmr_by_season[i], color='blue')
+        plt.plot(mmr_s_dates[i], mmr_by_season[i], color='blue')
         mmr, slope = player_mmr_function(mmr_by_season[i])
 
-        fig.plot(
+        plt.plot(
             [mmr_s_dates[i][0], mmr_s_dates[i][-1]],
             [mmr_by_season[i][0], mmr_by_season[i][0] + slope],
             color='orange'
         )
 
-        fig.hlines(
+        plt.hlines(
             y=np.mean(mmr_by_season[i]),
             xmin=min(mmr_s_dates[i]),
             xmax=max(mmr_s_dates[i]),
             color='red'
         )
-        fig.hlines(
+        plt.hlines(
             y=mmr, xmin=min(mmr_s_dates[i]),
             xmax=max(mmr_s_dates[i]), color='green'
         )
 
-    fig.xticks(rotation=45)
+    plt.set_xticklabels(plt.get_xticklabels(), rotation=45)
     fig.tight_layout()
-    fig.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
-    fig.title(player_key)
+    plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
+    # plt.set_title(player_key)
 
     return fig
 

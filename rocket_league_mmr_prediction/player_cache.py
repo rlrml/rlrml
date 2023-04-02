@@ -111,6 +111,11 @@ class PlayerCache:
     def _decode_value(self, value_bytes: bytes) -> int:
         return json.loads(value_bytes)
 
+    def iterator(self, *args, **kwargs):
+        """Construct an iterator using the underlying db."""
+        for key_bytes, value_bytes in self._player_id_db.iterator(*args, **kwargs):
+            yield self._decode_key(key_bytes), self._decode_value(value_bytes)
+
     def __iter__(self):
         """Iterate over the decoded values in the cache."""
         for key_bytes, value_bytes in self._player_id_db.iterator():
