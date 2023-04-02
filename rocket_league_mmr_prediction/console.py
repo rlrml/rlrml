@@ -60,7 +60,9 @@ def _iter_cache(filepath):
             if "platform" not in player_data and "mmr" in player_data:
                 print(f"Fixing {player_key}")
                 combined = tn.combine_profile_and_mmr_json(player_data)
-                player_cache.insert_data_for_player({"__tracker_suffix__": player_key}, combined)
+                player_cache.insert_data_for_player(
+                    {"__tracker_suffix__": player_key}, combined
+                )
             present_data += 1
 
     del player_cache
@@ -83,3 +85,11 @@ def _copy_games(source, dest):
     import sdbus
     sdbus.set_default_bus(sdbus.sd_bus_open_system())
     migration.copy_games_if_metadata_available_and_conditions_met(source, dest)
+
+
+@_call_with_sys_argv
+def host_plots(filepath):
+    """Run an http server that hosts plots of player mmr that in the cache."""
+    from . import _http_graph_server
+    _http_graph_server.make_routes(filepath)
+    _http_graph_server.app.run()
