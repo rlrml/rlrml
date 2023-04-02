@@ -24,6 +24,7 @@ class PlayerNotFoundOnTrackerNetwork:
 
 
 class PlayerCacheError(Exception):
+    """A base class for player cache errors."""
 
     pass
 
@@ -32,10 +33,12 @@ class PlayerCacheStoredError(PlayerCacheError):
     """An error stored in the cache for the player."""
 
     def __init__(self, data):
+        """Initialize the error with the data that is stored about the error in the cache."""
         self.data = data
 
 
 class PlayerCacheMissError(PlayerCacheError):
+    """An error that is thrown when the player is not found in the cache."""
 
     pass
 

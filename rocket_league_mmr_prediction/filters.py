@@ -79,6 +79,7 @@ def test_mmr_no_plot(player_data, player_key=None, seasons_avg=[8,9]):
     seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
 
     mmr_by_season = []
+
     #mmr_s_dates = []
     for i in range(len(seasons)-1):
         idx1 = np.where(dates > seasons[i])[0][0]
