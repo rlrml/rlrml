@@ -22,14 +22,24 @@ def _call_with_sys_argv(function):
 
 
 @_call_with_sys_argv
-def convert_replay():
+def load_game_dataset(filepath):
     """Convert the game provided through sys.argv."""
-    from . import vpn
-    import sdbus
-    sdbus.set_default_bus(sdbus.sd_bus_open_system())
-    cycler = vpn.VPNCycler()
+    from . import load
+    dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
+    for i in range(len(dataset)):
+        try:
+            dataset[i]
+        except:
+            pass
     import ipdb; ipdb.set_trace()
-    print(nm.all_devices)
+
+
+@_call_with_sys_argv
+def load_game_at_index(filepath, index):
+    """Convert the game provided through sys.argv."""
+    from . import load
+    dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
+    dataset[int(index)]
 
 
 @_call_with_sys_argv
@@ -45,13 +55,18 @@ def _iter_cache(filepath):
     from . import util
     from . import player_cache as cache
     from . import tracker_network as tn
+    import sdbus
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
 
     old_form = []
     missing_data = 0
     present_data = 0
     player_cache = cache.PlayerCache.new_with_cache_directory(filepath)
+    player_get = util.vpn_cycled_cached_player_get(filepath, player_cache=player_cache)
     for player_key, player_data in player_cache:
         if "__error__" in player_data:
+            if player_data["__error__"]["type"] == "500":
+                player_get({"__tracker_suffix__": player_key})
             missing_data += 1
         elif cache.PlayerNotFoundOnTrackerNetwork.string == player_data:
             missing_data += 1
@@ -71,10 +86,6 @@ def _iter_cache(filepath):
 
     if len(old_form):
         logger.warn(f"Non-empty old formm {old_form}")
-
-    import sdbus
-    sdbus.set_default_bus(sdbus.sd_bus_open_system())
-    player_get = util.vpn_cycled_cached_player_get(filepath)
 
     for player_suffix in old_form:
         player_get({"__tracker_suffix__": player_suffix})
@@ -97,6 +108,7 @@ def host_plots(filepath):
 
 @_call_with_sys_argv
 def get_player(filepath, player_key):
+    """Get the provided player either from the cache or the tracker network."""
     import sdbus
     from . import util
     sdbus.set_default_bus(sdbus.sd_bus_open_system())
