@@ -12,6 +12,7 @@ def vpn_cycled_cached_player_get(filepath, *args, **kwargs):
         "get_player_data", tracker_network.TrackerNetwork().get_player_data
     )
     vpn_cycler = vpn.VPNCycler(*args, **kwargs)
+    kwargs.setdefault("value", lambda e: 3)
 
     return pc.CachedGetPlayerData(
         player_cache,

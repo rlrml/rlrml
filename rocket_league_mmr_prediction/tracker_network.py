@@ -160,6 +160,7 @@ class TrackerNetwork:
         try:
             return await self.get_player_data(player)
         except aiocurl.error as e:
+            import ipdb; ipdb.set_trace()
             logger.warn(f"Encountered {e} on get_player_data, retrying")
             self._multi = aiocurl.CurlMulti()
             return await self.get_player_data(player)
