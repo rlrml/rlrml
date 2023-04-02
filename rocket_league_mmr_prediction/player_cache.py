@@ -90,6 +90,8 @@ class PlayerCache:
         if result is None:
             raise PlayerCacheMissError()
         value = self._decode_value(result)
+        if value == PlayerNotFoundOnTrackerNetwork.string:
+            raise PlayerCacheStoredError({"type": "404", "__oldform__": True})
         if self.error_key in value:
             raise PlayerCacheStoredError(value[self.error_key])
         return value
@@ -104,10 +106,7 @@ class PlayerCache:
         return key_bytes.decode('utf-8')
 
     def _decode_value(self, value_bytes: bytes) -> int:
-        value = json.loads(value_bytes)
-        if value == PlayerNotFoundOnTrackerNetwork.string:
-            raise PlayerCacheStoredError({"type": "404", "__oldform__": True})
-        return value
+        return json.loads(value_bytes)
 
     def __iter__(self):
         """Iterate over the decoded values in the cache."""
@@ -143,9 +142,9 @@ class CachedGetPlayerData:
             logger.warn("Could not obtain an mmr value for {} due to {}".format(
                 player_meta, e
             ))
-            if self._cache_misses and e.status_code == 404:
+            if self._cache_misses and e.status_code in (404, 500):
                 self._player_cache.insert_error_for_player(
-                    player_meta, {"type": "404"}
+                    player_meta, {"type": str(e.status_code)}
                 )
         else:
             player_data["player_metadata"] = player_meta

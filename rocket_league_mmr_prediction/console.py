@@ -42,24 +42,40 @@ def fill_cache_with_tracker_rank(filepath):
 
 @_call_with_sys_argv
 def _iter_cache(filepath):
-    import json
+    from . import util
     from . import player_cache as cache
+    from . import tracker_network as tn
+
+    old_form = []
     missing_data = 0
     present_data = 0
-    for player_key, player_data in cache.PlayerCache.new_with_cache_directory(filepath):
-        if present_data > 5:
-            break
-        try:
-            filters.test_mmr(player_data, player_key)
-        except filters.NotInTrackerNetwork:
-            pass
-            #print('failed for: ', player_key)
-        except filters.NoMMRHistory:
-            pass
-        if player_data is cache.PlayerNotFoundOnTrackerNetwork:
+    player_cache = cache.PlayerCache.new_with_cache_directory(filepath)
+    for player_key, player_data in player_cache:
+        if "__error__" in player_data:
             missing_data += 1
+        elif cache.PlayerNotFoundOnTrackerNetwork.string == player_data:
+            missing_data += 1
+            old_form.append(player_key)
         else:
+            if "platform" not in player_data and "mmr" in player_data:
+                print(f"Fixing {player_key}")
+                combined = tn.combine_profile_and_mmr_json(player_data)
+                player_cache.insert_data_for_player({"__tracker_suffix__": player_key}, combined)
             present_data += 1
+
+    del player_cache
+
+    print(f"present_data: {present_data}, missing_data: {missing_data}")
+
+    if len(old_form):
+        logger.warn(f"Non-empty old formm {old_form}")
+
+    import sdbus
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
+    player_get = util.vpn_cycled_cached_player_get(filepath)
+
+    for player_suffix in old_form:
+        player_get({"__tracker_suffix__": player_suffix})
 
 
 @_call_with_sys_argv

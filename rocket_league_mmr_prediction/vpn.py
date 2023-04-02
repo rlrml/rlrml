@@ -66,7 +66,8 @@ class VPNCycler:
 
         self._deactivate_unselected_connections()
 
-        logger.info("Activating new connection")
+        connection_info = self._active_connection[1].get_settings()['connection']
+        logger.info(f"Activating new connection {connection_info}")
         self._activate_connection(self._active_connection[0])
 
     def _deactivate_connection(self, path):

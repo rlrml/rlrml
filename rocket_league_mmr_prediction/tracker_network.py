@@ -35,6 +35,9 @@ def get_profile_uri_for_player(player):
 
 def get_profile_suffix_for_player(player):
     """Get the suffix to use to generate a players tracker network profile uri."""
+    if "__tracker_suffix__" in player:
+        return player["__tracker_suffix__"]
+
     platform = player["id"]["platform"]
 
     if platform == "steam":
@@ -142,10 +145,10 @@ class CloudScraperTrackerNetwork:
         mmr_history_uri = get_mmr_history_uri_by_id(tracker_api_id)
         mmr_result = self._get(mmr_history_uri)
 
-        return {
+        return combine_profile_and_mmr_json({
             "profile": profile_result,
             "mmr": mmr_result,
-        }
+        })
 
 
 class CurlTrackerNetwork:
