@@ -125,11 +125,11 @@ class PlayerCache:
 class CachedGetPlayerData:
     """A version of the tracker network that is backed by a :py:class:`PlayerCache`."""
 
-    def __init__(self, player_cache, get_player_data, cache_misses=True, retry_tombstones=False):
+    def __init__(self, player_cache, get_player_data, cache_misses=True, retry_errors=("500")):
         """Initatialize the cached get."""
         self._get_player_data = get_player_data
         self._player_cache = player_cache
-        self._retry_tombstones = retry_tombstones
+        self._retry_errors = retry_errors
         self._cache_misses = cache_misses
 
     def get_player_data(self, player_meta):
@@ -140,6 +140,8 @@ class CachedGetPlayerData:
             pass
         except PlayerCacheStoredError as e:
             if "__oldform__" in e.data:
+                pass
+            elif e.data["type"] in self._retry_errors:
                 pass
             else:
                 return None

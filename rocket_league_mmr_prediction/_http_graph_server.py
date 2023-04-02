@@ -1,4 +1,5 @@
 import base64
+import logging
 from io import BytesIO
 
 from flask import Flask, request
@@ -10,6 +11,7 @@ from .tracker_network import CloudScraperTrackerNetwork
 
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _img_from_fig(fig: Figure):
@@ -23,7 +25,9 @@ def make_routes(filepath):
 
     cache = pc.PlayerCache.new_with_cache_directory(filepath)
 
-    cached_get = pc.CachedGetPlayerData(cache, CloudScraperTrackerNetwork().get_player_data)
+    cached_get = pc.CachedGetPlayerData(
+        cache, CloudScraperTrackerNetwork().get_player_data
+    ).get_player_data
 
     @app.route("/at/<platform>/<player_name>")
     def starting_at(platform, player_name):
@@ -33,8 +37,9 @@ def make_routes(filepath):
     def at(player_key, double_dot=False):
         if request.args.get("fetch", default=False):
             try:
-                cached_get(player_key)
-            except Exception:
+                cached_get({"__tracker_suffix__": player_key})
+            except Exception as e:
+                logger.warn(f"Exception when doing cached_get {e}")
                 pass
 
         count = request.args.get("count", default=1)
@@ -49,7 +54,7 @@ def make_routes(filepath):
             try:
                 filters.plot_mmr(player_data, player_key, fig)
             except Exception as e:
-                print(f"exception fff {e}")
+                logger.warn(f"Exception attempting to plot {player_key} {e}")
                 continue
 
             player_info = player_data["platform"]
