@@ -57,7 +57,7 @@ player_data['mmr_history'] = {
     Ranked Standard 3v3
 }
 '''
-def test_mmr_no_plot(player_data, player_key):
+def test_mmr_no_plot(player_data, player_key=None, seasons_avg=[8,9]):
     if not isinstance(player_data, dict):
         raise NotInTrackerNetwork
 
@@ -72,25 +72,24 @@ def test_mmr_no_plot(player_data, player_key):
     dates = np.sort(dates)
 
     seasons = np.array([datetime.strptime(date[0], '%Y-%m-%d') for date in SEASON_DATES.values()])
+    seasons_avg -= 1
+    seasons = [seasons_avg]
     seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
 
     mmr_by_season = []
-    mmr_s_dates = []
+    #mmr_s_dates = []
     for i in range(len(seasons)-1):
         idx1 = np.where(dates > seasons[i])[0][0]
         idx2 = np.where(dates > seasons[i+1])[0][0]
-        mmr_by_season.append(mmrs[idx1:idx2])
-        mmr_s_dates.append(dates[idx1:idx2])
-    mmr_by_season.append(mmrs[np.where(dates > seasons[-1])[0][0]:])
-    mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
+        mmr_by_season.append(player_mmr_function(mmrs[idx1:idx2]))
+        #mmr_s_dates.append(dates[idx1:idx2])
+    mmr_by_season.append(player_mmr_function(mmrs[np.where(dates > seasons[-1])[0][0]:]))
+    #mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
 
-    if len(mmr_by_season) < 2:
-        return player_mmr_function(mmrs)
+    #mmr1, slope = player_mmr_function(mmr_by_season[-1])
+    #mmr2, slope = player_mmr_function(mmr_by_season[-2])
 
-    mmr1, slope = player_mmr_function(mmr_by_season[-1])
-    mmr2, slope = player_mmr_function(mmr_by_season[-2])
-
-    return (mmr1 + mmr2)/2
+    return np.mean(mmr_by_season)
 
 def test_mmr(player_data, player_key):
     if not isinstance(player_data, dict):
