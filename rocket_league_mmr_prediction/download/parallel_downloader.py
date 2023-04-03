@@ -167,7 +167,9 @@ class ParallelDownloader:
                 )
         async with self._next_request as response:
             self._next_request, tasks = \
-                await self._config.get_tasks_and_next_request_from_response(self._session, response)
+                await self._config.get_tasks_and_next_request_from_response(
+                    self._session, response
+                )
         self._config.progress_handler.item_list_updated(tasks, self)
         for task_meta in tasks:
             await self._filter_queue.put(task_meta)
