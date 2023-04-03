@@ -7,7 +7,7 @@ from markupsafe import escape
 from matplotlib.figure import Figure
 
 from . import player_cache as pc
-from . import filters
+from . import plot
 from .tracker_network import CloudScraperTrackerNetwork
 
 
@@ -30,7 +30,7 @@ def make_routes(filepath):
     def starting_at(platform, player_name):
         return at(f"{platform}/{player_name}", double_dot=True)
 
-    @app.route("/at/<player_key>")
+    @app.route("/at/<target_player_key>")
     def at(target_player_key, double_dot=False):
         try:
             pc.CachedGetPlayerData(
@@ -38,6 +38,7 @@ def make_routes(filepath):
             ).get_player_data({"__tracker_suffix__": target_player_key})
         except Exception as e:
             logger.warn(f"Exception when doing cached_get {e}")
+            raise e
 
         count = int(request.args.get("count", default=3))
         elements = []
@@ -49,12 +50,9 @@ def make_routes(filepath):
                 else:
                     break
 
-            fig = Figure()
-
             try:
-                filters.plot_mmr(player_data, player_key, fig)
-            except Exception as e:
-                logger.warn(f"Exception attempting to plot {player_key} {e}")
+                fig = plot.PlotGenerator.from_player_data(player_data).generate()
+            except KeyError:
                 continue
 
             player_info = player_data["platform"]

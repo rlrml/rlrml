@@ -109,8 +109,22 @@ def host_plots(filepath):
 @_call_with_sys_argv
 def get_player(filepath, player_key):
     """Get the provided player either from the cache or the tracker network."""
+    import json
     import sdbus
     from . import util
+
     sdbus.set_default_bus(sdbus.sd_bus_open_system())
     player_get = util.vpn_cycled_cached_player_get(filepath)
-    print(player_get({"__tracker_suffix__": player_key})["platform"])
+    player = player_get({"__tracker_suffix__": player_key})
+    # print(player["platform"])
+    print(len(player['mmr_history']['Ranked Doubles 2v2']))
+    season_dates = filters.tighten_season_dates(filters.SEASON_DATES, move_end_date=1)
+    print(season_dates)
+    segmented_history = filters.split_mmr_history_into_seasons(
+        player['mmr_history']['Ranked Doubles 2v2'],
+        season_dates=season_dates
+    )
+
+    print(json.dumps(
+        [(i, len(vs)) for i, vs in segmented_history]
+    ))

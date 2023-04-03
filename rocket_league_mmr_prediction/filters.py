@@ -4,18 +4,24 @@ from matplotlib.figure import Figure
 import numpy as np
 
 
-SEASON_DATES = {
-    1:  ("2020-09-23", "2020-12-09"),
-    2:  ("2020-12-09", "2021-04-07"),
-    3:  ("2021-04-07", "2021-08-11"),
-    4:  ("2021-08-11", "2021-11-17"),
-    5:  ("2021-11-17", "2022-03-09"),
-    6:  ("2022-03-09", "2022-06-15"),
-    7:  ("2022-06-15", "2022-09-07"),
-    8:  ("2022-09-07", "2022-12-07"),
-    9:  ("2022-12-07", "2023-03-08"),
-    10: ("2023-03-08", "2023-06-07"),
-}
+SEASON_TEXT_DATES = [
+    (1, ("2020-09-23", "2020-12-09")),
+    (2, ("2020-12-09", "2021-04-07")),
+    (3, ("2021-04-07", "2021-08-11")),
+    (4, ("2021-08-11", "2021-11-17")),
+    (5, ("2021-11-17", "2022-03-09")),
+    (6, ("2022-03-09", "2022-06-15")),
+    (7, ("2022-06-15", "2022-09-07")),
+    (8, ("2022-09-07", "2022-12-07")),
+    (9, ("2022-12-07", "2023-03-08")),
+    (10, ("2023-03-08", "2023-06-07")),
+]
+
+
+SEASON_DATES = [
+    (season_number, tuple(map(lambda v: datetime.date.fromisoformat(v), value)))
+    for season_number, value in SEASON_TEXT_DATES
+]
 
 
 class MMRFilteringError(Exception):
@@ -39,129 +45,14 @@ class MMRMinMaxDiscrepancyTooLarge(MMRFilteringError):
         self.max_mmr = max_mmr
 
 
-def test_mmr_no_plot(player_data, player_key=None, seasons_avg=(8, 9)):
-    if not isinstance(player_data, dict):
-        raise NoMMRHistory()
-
-    try:
-        mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
-    except KeyError:
-        raise NoMMRHistory()
-
-    mmrs = np.array([mmr for _, mmr in mmr_history])
-    dates = np.array(
-        [
-            datetime.strptime(date.split('T')[0], '%Y-%m-%d')
-            for date, _ in mmr_history
-        ]
-    )
-    mmrs = mmrs[np.argsort(dates)]
-    dates = np.sort(dates)
-
-    seasons = np.array([
-        datetime.strptime(date[0], '%Y-%m-%d')
-        for date in SEASON_DATES.values()
-    ])
-
-    seasons_avg -= 1
-    seasons = [seasons_avg]
-    seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
-
-    mmr_by_season = []
-
-    # mmr_s_dates = []
-    for i in range(len(seasons) - 1):
-        idx1 = np.where(dates > seasons[i])[0][0]
-        idx2 = np.where(dates >= seasons[i + 1])[0][0]
-        mmr_by_season.append(player_mmr_function(mmrs[idx1:idx2]))
-        # mmr_s_dates.append(dates[idx1:idx2])
-
-    mmr_by_season.append(player_mmr_function(mmrs[np.where(dates > seasons[-1])[0][0]:]))
-    # mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
-
-    # mmr1, slope = player_mmr_function(mmr_by_season[-1])
-    # mmr2, slope = player_mmr_function(mmr_by_season[-2])
-
-    return np.mean(mmr_by_season)
-
-
-def plot_mmr(player_data, player_key, fig: Figure):
-
-    if not isinstance(player_data, dict):
-        raise NoMMRHistory()
-
-    try:
-        mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
-    except KeyError:
-        raise NoMMRHistory()
-
-    mmrs = np.array([mmr for _, mmr in mmr_history])
-    dates = np.array([
-        datetime.datetime.strptime(date.split('T')[0], '%Y-%m-%d')
-        for date, _ in mmr_history
-    ])
-    mmrs = mmrs[np.argsort(dates)]
-    dates = np.sort(dates)
-
-    seasons = np.array([
-        datetime.datetime.strptime(date[0], '%Y-%m-%d')
-        for date in SEASON_DATES.values()
-    ])
-    seasons = seasons[(seasons > min(dates)) & (seasons < max(dates))]
-
-    # mmr = player_mmr_function(mmrs, seasons)
-
-    mmr_by_season = []
-    mmr_s_dates = []
-
-    for i in range(len(seasons) - 1):
-        idx1 = np.where(dates > seasons[i])[0][0]
-        idx2 = np.where(dates >= seasons[i + 1])[0][0]
-        mmr_by_season.append(mmrs[idx1:idx2])
-        mmr_s_dates.append(dates[idx1:idx2])
-
-    mmr_by_season.append(mmrs[np.where(dates > seasons[-1])[0][0]:])
-    mmr_s_dates.append(dates[np.where(dates > seasons[-1])[0][0]:])
-
-    fig.clf()
-    plt = fig.subplots()
-
-    for i in range(len(mmr_by_season)):
-        plt.plot(mmr_s_dates[i], mmr_by_season[i], color='blue')
-        mmr, slope = player_mmr_function(mmr_by_season[i])
-
-        plt.plot(
-            [mmr_s_dates[i][0], mmr_s_dates[i][-1]],
-            [mmr_by_season[i][0], mmr_by_season[i][0] + slope],
-            color='orange'
-        )
-
-        plt.hlines(
-            y=np.mean(mmr_by_season[i]),
-            xmin=min(mmr_s_dates[i]),
-            xmax=max(mmr_s_dates[i]),
-            color='red'
-        )
-        plt.hlines(
-            y=mmr, xmin=min(mmr_s_dates[i]),
-            xmax=max(mmr_s_dates[i]), color='green'
-        )
-
-    plt.set_xticklabels(plt.get_xticklabels(), rotation=45)
-    fig.tight_layout()
-    plt.vlines(seasons, ymin=min(mmrs), ymax=max(mmrs), colors='red')
-    # plt.set_title(player_key)
-
-    return fig
-
-
-def player_mmr_function(mmrs):
+def kelly_mmr_function(mmrs):
+    """Calculate MMR by looking at the season slope and the standard deviation."""
     slope = mmrs[-1] - mmrs[0]
     # for i in range(1, len(mmrs)):
     #    slope += mmrs[i] - mmrs[i-1]
     ratio = (slope - np.std(mmrs)) / (max(mmrs) - min(mmrs))
 
-    return np.mean(mmrs) + (abs(ratio) * (mmrs[-1] - mmrs[0])) / 2, slope
+    return np.mean(mmrs) + (abs(ratio) * (mmrs[-1] - mmrs[0])) / 2
 
 
 def _get_start_date_and_end_date(game_data, days_before, days_after):
@@ -215,52 +106,114 @@ def _minimum_total_wins_for_mmr(mmr_to_use):
     return min(c + b * mmr_to_use + a * pow(mmr_to_use, 2), 1500)
 
 
-def require_mmr_within_range_of_used_mmr(
-        mmr_to_use, player_data, game_data, playlist="Ranked Doubles 2v2",
-        days_before=None, days_after=None, delta=120, expand_to_get_value=True
-):
-    """Check whether a players mmr was within an amount of a target."""
-    game_date = datetime.datetime.fromisoformat(game_data["date"]).date()
+class _MMRHistorySplitter:
 
-    start_date = None
-    if days_before is not None:
-        start_date = game_date - datetime.timedelta(days=days_before)
+    @classmethod
+    def from_tracker_data(cls, mmr_history, **kwargs):
+        mmr_history = [
+            (datetime.datetime.fromisoformat(date_string), mmr)
+            for date_string, mmr in mmr_history
+        ]
+        mmr_history.sort(key=lambda v: v[0])
+        return cls(mmr_history, **kwargs)
 
-    end_date = None
-    if days_after is not None:
-        end_date = game_date + datetime.timedelta(days=days_after)
+    def __init__(self, mmr_history, season_dates=SEASON_DATES):
+        self._mmr_history = mmr_history
+        self._season_dates = season_dates
+        self._season_number, self._start_date, self._end_date, self._season_started = (
+            None, None, None, None
+        )
+        self._seasons_exhausted = False
+        self._seasons_iterator = iter(self._season_dates)
+        self._segmented_history = []
+        self._current_segment = []
 
-    date_mmrs = mmr_between_dates(
-        player_data, playlist=playlist, start_date=start_date, end_date=end_date
-    )
+    def _increment_season(self):
+        try:
+            self._season_number, (self._start_date, self._end_date) = next(self._seasons_iterator)
+            self._season_started = False
+        except StopIteration:
+            self._seasons_exhausted = True
 
-    mmrs = [mmr for _, mmr in date_mmrs]
+    def _finish_segment(self):
+        segment_number = (
+            self._season_number + .5 if self._seasons_exhausted
+            else self._season_number if self._season_started
+            else self._season_number - .5
+        )
+        if self._current_segment:
+            self._segmented_history.append((segment_number, self._current_segment))
+            self._current_segment = []
 
-    max_mmr = max(mmrs)
-    min_mmr = min(mmrs)
+    def _handle_item(self, item):
+        date, mmr = item
+        date = date.date()
+        after_start = self._start_date <= date
+        before_end = date <= self._end_date
+        in_bounds = after_start and before_end
 
-    return (max_mmr - mmr_to_use < delta) and (mmr_to_use - min_mmr < delta)
+        if self._seasons_exhausted or (
+            self._season_started and in_bounds
+        ) or (
+            not after_start and not self._season_started
+        ):
+            return self._current_segment.append(item)
+
+        if in_bounds:
+            self._finish_segment()
+            self._season_started = True
+        elif not before_end:
+            self._finish_segment()
+            self._increment_season()
+
+        return self._handle_item(item)
+
+    def get_history(self):
+        self._increment_season()
+        for item in self._mmr_history:
+            self._handle_item(item)
+
+        # This final finish segment handles either making the last season (if
+        # nothing was ever out of bounds of the last season), or adds a final
+        # season after the last bound.
+        self._finish_segment()
+
+        return self._segmented_history
+
+
+def split_mmr_history_into_seasons(mmr_history, season_dates=SEASON_DATES):
+    """Split the given tracker network MMR history into per season history."""
+    return _MMRHistorySplitter.from_tracker_data(
+        mmr_history, season_dates=season_dates
+    ).get_history()
+
+
+def tighten_season_dates(season_dates, move_end_date=1, move_start_date=1):
+    """Adjust the provided season start and end dates."""
+    return [
+        (season_number, (
+            season_start + datetime.timedelta(days=move_start_date),
+            season_end - datetime.timedelta(days=move_end_date)
+        ))
+        for season_number, (season_start, season_end) in season_dates
+    ]
 
 
 def mmr_between_dates(
-        player_data, playlist="Ranked Doubles 2v2", start_date=None, end_date=None,
+        mmr_history, start_date=None, end_date=None,
 ):
     """Get mmrs from player_data for the relevant playlist between the optional date bounds."""
-    try:
-        mmr_history = player_data["mmr_history"][playlist]
-    except KeyError:
-        raise NoMMRHistory()
 
     def in_bounds(the_date):
         all_good = True
         if start_date:
-            all_good = all_good and start_date <= the_date
+            all_good = all_good and start_date < the_date
         if end_date:
-            all_good = all_good and the_date <= end_date
+            all_good = all_good and the_date < end_date
         return all_good
 
     return [
-        (datetime.datetime.fromisoformat(date_string).date(), mmr)
-        for date_string, mmr in mmr_history
-        if in_bounds(datetime.datetime.fromisoformat(date_string).date())
+        (date, mmr)
+        for date, mmr in mmr_history
+        if in_bounds(datetime.datetime.fromisoformat(date).date())
     ]
