@@ -310,6 +310,13 @@ class SeasonBasedPolyFitMMRCalculator:
 
         max_difference = self._dynamic_max_poly_max_gap(previous_poly_max)
 
+        if (
+                last_season_stats.get('~increasing', False) and
+                last_season_stats['point_count'] >= self._season_dp_threshold and
+                last_season_stats['poly_finish'] > estimate
+        ):
+            return min(last_season_stats['poly_finish'], game_season_stats['max'])
+
         if previous_poly_max - estimate > max_difference:
             logger.warn("Large poly max to estimate difference")
             return previous_poly_max - max_difference
@@ -318,12 +325,11 @@ class SeasonBasedPolyFitMMRCalculator:
         if estimate < last_mean:
             return last_mean
 
-        if (
-                last_season_stats.get('~increasing', False) and
-                last_season_stats['point_count'] >= self._season_dp_threshold and
-                last_season_stats['poly_finish'] > estimate
-        ):
-            return last_season_stats['poly_finish']
+        if estimate > game_season_stats['max']:
+            return game_season_stats['max']
+
+        if estimate < game_season_stats['min']:
+            return game_season_stats['min']
 
         return estimate
 
