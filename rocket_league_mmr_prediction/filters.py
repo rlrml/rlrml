@@ -161,7 +161,7 @@ def _calculate_basic_season_statistics(season_data, keep_poly=True, approx_incre
     day_deltas = [(date - first_date).days for date in dates]
 
     try:
-        poly = np.polynomial.Polynomial.fit(day_deltas, mmrs, 2)
+        poly = np.polynomial.Polynomial.fit(day_deltas, mmrs, 3)
     except np.linalg.LinAlgError:
         pass
     else:
@@ -269,8 +269,8 @@ class SeasonBasedPolyFitMMRCalculator:
             # TODO: try to use previous season?
             return 0
 
-        if game_season_stats['point_count'] < self._season_dp_threshold:
-            return np.mean([game_season_stats['max'], game_season_stats['min']])
+        # if game_season_stats['point_count'] < self._season_dp_threshold:
+        #     return np.mean([game_season_stats['max'], game_season_stats['min']])
 
         poly_game_day = (game_date - self._mmr_history_dict[season_number][0][0].date()).days
 
@@ -315,15 +315,20 @@ class SeasonBasedPolyFitMMRCalculator:
                 last_season_stats['point_count'] >= self._season_dp_threshold and
                 last_season_stats['poly_finish'] > estimate
         ):
-            return min(last_season_stats['poly_finish'], game_season_stats['max'])
+            estimate = min(last_season_stats['poly_finish'], game_season_stats['max'])
 
         if previous_poly_max - estimate > max_difference:
-            logger.warn("Large poly max to estimate difference")
-            return previous_poly_max - max_difference
+            estimate = previous_poly_max - max_difference
 
         last_mean = last_season_stats.get('mean', 0)
         if estimate < last_mean:
-            return last_mean
+            estimate = last_mean
+
+        min_season_finish = min(
+            game_season_stats['poly_finish'], last_season_stats.get('poly_finish', 0)
+        )
+        if estimate < min_season_finish:
+            estimate = min_season_finish
 
         if estimate > game_season_stats['max']:
             return game_season_stats['max']

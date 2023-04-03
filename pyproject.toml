@@ -30,7 +30,7 @@ ipdb = "^0.13.13"
 
 [tool.poetry.scripts]
 load_game_dataset = 'rocket_league_mmr_prediction.console:load_game_dataset'
-load_game_at_index = 'rocket_league_mmr_prediction.console:load_game_at_index'
+load_game_at_indices = 'rocket_league_mmr_prediction.console:load_game_at_indices'
 fill_cache_with_tracker_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_tracker_rank'
 iter_cache = 'rocket_league_mmr_prediction.console:_iter_cache'
 copy_games = 'rocket_league_mmr_prediction.console:_copy_games'

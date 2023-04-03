@@ -27,19 +27,21 @@ def load_game_dataset(filepath):
     from . import load
     dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
     for i in range(len(dataset)):
+        print(i)
         try:
             dataset[i]
-        except:
-            pass
+        except Exception as e:
+            print(e)
     import ipdb; ipdb.set_trace()
 
 
 @_call_with_sys_argv
-def load_game_at_index(filepath, index):
+def load_game_at_indices(filepath, *indices):
     """Convert the game provided through sys.argv."""
     from . import load
     dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
-    dataset[int(index)]
+    for index in indices:
+        dataset[int(index)]
 
 
 @_call_with_sys_argv
