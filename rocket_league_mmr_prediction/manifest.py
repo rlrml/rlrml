@@ -25,6 +25,7 @@ rank_tier_map = {
 
 
 class ManifestLoader(object):
+    """Load data from manifest files."""
 
     def __init__(self):
         self.filepath_cache = {}

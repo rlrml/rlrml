@@ -37,6 +37,7 @@ copy_games = 'rocket_league_mmr_prediction.console:_copy_games'
 host_mmr_plots = 'rocket_league_mmr_prediction.console:host_plots'
 rlbc_download = 'rocket_league_mmr_prediction.download.console:run'
 get_player = 'rocket_league_mmr_prediction.console:get_player'
+convert_game = 'rocket_league_mmr_prediction.console:convert_game'
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,6 +1,5 @@
 """Load replays into memory into a format that can be used with torch."""
 import itertools
-import marshal
 import numpy as np
 import os
 import torch
@@ -10,7 +9,6 @@ from carball_lite import game
 from torch.utils.data import Dataset
 
 from . import manifest
-from . import tracker_network
 
 
 def get_carball_game(replay_path):
@@ -26,27 +24,31 @@ def get_carball_game(replay_path):
     # This is confusingly called loaded_json, but what is expected is actually a
     # python object. In our case we are not loading from json, but directly from
     # the replay file, but this is fine.
+    import ipdb; ipdb.set_trace()
     cb_game.initialize(loaded_json=boxcars_data)
     return cb_game
 
 
 default_manifest_loader = manifest.ManifestLoader()
+
+
 def default_label_lookup(rid, rfp, _):
+    return 0
     mmr_dict, player_metas = default_manifest_loader.lookup_labels_by_manifest_file(rid, rfp)
     for player, value in mmr_dict.items():
         if value is None:
-            mmr_dict[player] = tracker_network.get_doubles_mmr_from_player_meta(player_metas[player])
+            mmr_dict[player] = 0
     return mmr_dict
 
 
-class ReplayDirectoryDataLoader(Dataset):
+class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
     def __init__(
-            self, filepath, cache_directory_name="__cache",
+            self, filepath, cache_directory_name="__game_cache",
             replay_extension="replay", cache_on_load=True,
-            cache_extension="pt", labels_extension="labels",
-            label_lookup=default_label_lookup, eager_labels=True,
+            cache_extension="pt", label_lookup=default_label_lookup,
+            eager_labels=True,
     ):
         """Initialize the data loader."""
         self._filepath = filepath
@@ -59,15 +61,8 @@ class ReplayDirectoryDataLoader(Dataset):
         self._cache_directory = os.path.join(
             self._filepath, self._cache_directory_name
         )
-        self._labels_filepath = os.path.join(
-            self._cache_directory, f"labels.{labels_extension}"
-        )
         if not os.path.exists(self._cache_directory):
             os.makedirs(self._cache_directory)
-        if os.path.exists(self._labels_filepath):
-            self._labels_cache = self._load_labels_cache()
-        else:
-            self._labels_cache = {}
 
         self._replay_ids = list(self._get_replay_ids())
 
@@ -89,14 +84,6 @@ class ReplayDirectoryDataLoader(Dataset):
 
     def _cache_path_for_replay(self, replay_id):
         return os.path.join(self._cache_directory, f"{replay_id}.{self._cache_extension}")
-
-    def _save_labels_cache(self):
-        with open(self._labels_filepath, 'wb') as f:
-            marshal.dump(self._labels_cache, f)
-
-    def _load_labels_cache(self):
-        with open(self._labels_filepath, 'rb') as f:
-            return marshal.load(f)
 
     def _maybe_load_from_cache(self, replay_id):
         path = self._cache_path_for_replay(replay_id)
@@ -120,7 +107,7 @@ class ReplayDirectoryDataLoader(Dataset):
         from_cache = self._maybe_load_from_cache(replay_id)
 
         if from_cache is not None:
-            return (from_cache, self._labels_cache[replay_id])
+            return (from_cache, [0, 0])
 
         carball_game = get_carball_game(replay_path)
         converter = _CarballToTensorConverter(carball_game)
@@ -128,12 +115,11 @@ class ReplayDirectoryDataLoader(Dataset):
 
         label_dict = self._label_lookup(replay_id, replay_path, carball_game)
 
-        labels = torch.tensor([label_dict[player.name] for player in converter.player_order])
+        labels = torch.tensor([0 for player in converter.player_order])
 
         if self._cache_on_load:
             self._save_replay_to_cache(replay_id, replay_data)
             self._labels_cache[replay_id] = labels
-            self._save_labels_cache()
 
         return replay_data, labels
 
@@ -173,6 +159,8 @@ class _CarballToTensorConverter(object):
         self.blue_team = list(
             next(team.players for team in carball_game.teams if not team.is_orange)
         )
+        self.orange_team.sort(key=lambda p: p.name)
+        self.blue_team.sort(key=lambda p: p.name)
         self.player_order = self.orange_team + self.blue_team
         self.include_time = include_time
 

@@ -7,6 +7,7 @@ import coloredlogs
 
 from sdbus_block import networkmanager as nm
 
+from . import load
 from . import migration
 from . import logger
 from . import filters
@@ -24,22 +25,26 @@ def _call_with_sys_argv(function):
 @_call_with_sys_argv
 def load_game_dataset(filepath):
     """Convert the game provided through sys.argv."""
-    from . import load
-    dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
+    dataset = load.ReplayDataset(filepath, eager_labels=False)
     for i in range(len(dataset)):
         print(i)
         try:
             dataset[i]
         except Exception as e:
             print(e)
+
+
+@_call_with_sys_argv
+def convert_game(filepath):
+    game = load.get_carball_game(filepath)
     import ipdb; ipdb.set_trace()
+    converter = load._CarballToTensorConverter(game)
 
 
 @_call_with_sys_argv
 def load_game_at_indices(filepath, *indices):
     """Convert the game provided through sys.argv."""
-    from . import load
-    dataset = load.ReplayDirectoryDataLoader(filepath, eager_labels=False)
+    dataset = load.ReplayDataset(filepath, eager_labels=False)
     for index in indices:
         dataset[int(index)]
 
