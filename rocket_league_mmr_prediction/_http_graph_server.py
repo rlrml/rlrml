@@ -6,6 +6,7 @@ from flask import Flask, request, redirect
 from markupsafe import escape
 from matplotlib.figure import Figure
 
+from . import filters
 from . import player_cache as pc
 from . import plot
 from .tracker_network import CloudScraperTrackerNetwork
@@ -51,9 +52,25 @@ def make_routes(filepath):
                     break
 
             try:
-                fig = plot.PlotGenerator.from_player_data(player_data).generate()
+                mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
+                season_dates = filters.tighten_season_dates(
+                    filters.SEASON_DATES, move_end_date=2
+                )
+                mmr_by_season = filters.split_mmr_history_into_seasons(
+                    mmr_history, season_dates=season_dates
+                )
+                calc = filters.SeasonBasedPolyFitMMRCalculator(
+                    mmr_by_season, season_dates=season_dates,
+                )
             except KeyError:
                 continue
+            else:
+                fig = plot.PlotGenerator(
+                    mmr_by_season, additional_plotters=(
+                        # plot.make_plot_poly_fit(2),
+                        plot.make_calc_plot(calc),
+                    )
+                ).generate()
 
             player_info = player_data["platform"]
             elements.append(f"<div>{player_info}<br>{_img_from_fig(fig)}</div>")

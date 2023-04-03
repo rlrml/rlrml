@@ -1,5 +1,6 @@
 """Utilities for filtering games based on their metadata."""
 import datetime
+import logging
 import numpy as np
 
 
@@ -257,6 +258,7 @@ class SeasonBasedPolyFitMMRCalculator:
         self._season_stats = dict(self._stats["season"])
         self._dynamic_max_poly_max_gap = dynamic_max_poly_max_gap
         self._min_max_proximity_threshold = min_max_proximity_threshold
+        self._season_dp_threshold = season_dp_threshold
 
     def get_mmr(self, game_date):
         """Calculate mmr using the polyratic fit of a players mmr within the relevant season."""
@@ -265,13 +267,19 @@ class SeasonBasedPolyFitMMRCalculator:
 
         if game_season_stats is None:
             # TODO: try to use previous season?
+            return 0
+
+        if game_season_stats['point_count'] < self._season_dp_threshold:
+            return np.mean([game_season_stats['max'], game_season_stats['min']])
+
+        poly_game_day = (game_date - self._mmr_history_dict[season_number][0][0].date()).days
+
+        if 'poly' not in game_season_stats:
             return
 
-        poly_game_day = (game_date - self._mmr_history_dict[season_number][0]).date()
         poly_estimate = game_season_stats['poly'](poly_game_day)
         season_poly_max = game_season_stats['poly_max']
         season_poly_min = game_season_stats['poly_min']
-        season_poly_finish = game_season_stats['poly_finish']
 
         previous_global_poly_max = \
             self._stats["global"]["previous_poly_maxes"].get(season_number, 0)
@@ -281,16 +289,22 @@ class SeasonBasedPolyFitMMRCalculator:
             if last_season_stats is not None:
                 break
 
-        previous_poly_max = last_season_stats.get('poly_max', previous_global_poly_max)
+        last_season_stats = last_season_stats or {}
+
+        if last_season_stats:
+            previous_poly_max = last_season_stats.get('poly_max', previous_global_poly_max)
+        else:
+            previous_poly_max = previous_global_poly_max
 
         relevant_poly_max = min(previous_poly_max, season_poly_max)
 
         if game_season_stats["~increasing"]:
             estimate = max(relevant_poly_max, poly_estimate)
         elif season_poly_max - season_poly_min < self._min_max_proximity_threshold:
-            estimate = np.mean([season_poly_max, season_poly_min, previous_poly_max])
-        elif poly_game_day >= game_season_stats['poly_maximizer']:
-            estimate = np.mean([season_poly_max, season_poly_finish])
+            contributors = [season_poly_max, season_poly_min]
+            if previous_poly_max > season_poly_min:
+                contributors.append(previous_poly_max)
+            estimate = np.mean(contributors)
         else:
             estimate = poly_estimate
 
@@ -299,6 +313,17 @@ class SeasonBasedPolyFitMMRCalculator:
         if previous_poly_max - estimate > max_difference:
             logger.warn("Large poly max to estimate difference")
             return previous_poly_max - max_difference
+
+        last_mean = last_season_stats.get('mean', 0)
+        if estimate < last_mean:
+            return last_mean
+
+        if (
+                last_season_stats.get('~increasing', False) and
+                last_season_stats['point_count'] >= self._season_dp_threshold and
+                last_season_stats['poly_finish'] > estimate
+        ):
+            return last_season_stats['poly_finish']
 
         return estimate
 
