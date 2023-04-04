@@ -23,6 +23,7 @@ matplotlib = "^3.7.1"
 tk = "^0.1.0"
 cloudscraper = "^1.2.69"
 flask = "^2.2.3"
+xdg-base-dirs = "^6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}

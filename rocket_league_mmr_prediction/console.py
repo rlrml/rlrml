@@ -1,16 +1,39 @@
 """Defines command line entrypoints to the this library."""
+import argparse
 import asyncio
-import sys
+import coloredlogs
 import functools
 import logging
-import coloredlogs
+import os
+import sys
+import xdg_base_dirs
 
-from sdbus_block import networkmanager as nm
+from pathlib import Path
 
 from . import load
 from . import migration
 from . import logger
 from . import filters
+
+
+def _add_rlrml_args(parser=None):
+    parser = parser or argparse.ArgumentParser()
+
+    rlrml_directory = os.path.join(xdg_base_dirs.xdg_data_dirs()[0])
+
+    parser.add_argument(
+        '--player-cache',
+        help="The directory where the player cache can be found.",
+        type=Path,
+        default=os.path.join(rlrml_directory, "player_cache")
+    )
+    parser.add_argument(
+        '--replay-path',
+        help="The directory where game files are stored.",
+        type=Path,
+        default=os.path.join(rlrml_directory, "replays")
+    )
+    return parser
 
 
 def _call_with_sys_argv(function):
