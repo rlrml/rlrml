@@ -233,6 +233,11 @@ class SeasonBasedPolyFitMMRCalculator:
     """Calculate mmr using the polyratic fit of a players mmr within the relevant season."""
 
     @classmethod
+    def get_mmr_for_player_at_date(cls, game_date, *args, **kwargs):
+        """Get the for the provided player at the provided game date."""
+        return cls(*args, **kwargs).get_mmr(game_date)
+
+    @classmethod
     def from_player_data(cls, player_data, playlist_name='Ranked Doubles 2v2', **kwargs):
         """Extract the relevant values from player_data to initialize this class."""
         mmr_history = player_data['mmr_history'][playlist_name]

@@ -3,9 +3,9 @@ import json
 import logging
 import os
 import plyvel
-import abc
 
 from . import tracker_network
+from ._replay_meta import PlatformPlayer
 
 
 logger = logging.getLogger(__name__)
@@ -29,85 +29,6 @@ class PlayerCacheMissError(PlayerCacheError):
     """An error that is thrown when the player is not found in the cache."""
 
     pass
-
-
-class PlatformPlayer(abc.ABC):
-    """Object representing a rocket league player."""
-
-    @abc.abstractproperty
-    def platform(self):
-        """The platform of the players account."""
-        pass
-
-    @abc.abstractproperty
-    def tracker_identifier(self):
-        """The identifier to use to look up the players profile on the tracker network."""
-        pass
-
-    @abc.abstractproperty()
-    def name(self):
-        """The name of the player."""
-        pass
-
-    @property
-    def tracker_suffix(self):
-        """The url suffix that should be used to find the players profile on the tracker network."""
-        return f"{self.platform}/{self.tracker_identifier}"
-
-
-class SteamPlayer(PlatformPlayer):
-    """A player on the steam platform."""
-
-    def __init__(self, display_name, identifier):
-        self._display_name = display_name
-        self._identifier = identifier
-
-    @property
-    def platform(self):
-        return "steam"
-
-    @property
-    def tracker_identifier(self):
-        return self._identifier
-
-    @property
-    def name(self):
-        return self._display_name
-
-
-class _DisplayNameSuffixPlayer(PlatformPlayer):
-
-    platform_name = None
-
-    def __init__(self, display_name):
-        self._display_name = display_name
-
-    @property
-    def platform(self):
-        return self.platform_name
-
-    @property
-    def tracker_identifier(self):
-        return self._display_name
-
-    @property
-    def name(self):
-        return self._display_name
-
-
-class EpicPlayer(_DisplayNameSuffixPlayer):
-
-    platform_name = "epic"
-
-
-class PsnPlayer(_DisplayNameSuffixPlayer):
-
-    platform_name = "psn"
-
-
-class XboxPlayer(_DisplayNameSuffixPlayer):
-
-    platform_name = "xbl"
 
 
 def _use_tracker_url_suffix_as_key(player):

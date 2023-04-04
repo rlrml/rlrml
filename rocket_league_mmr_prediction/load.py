@@ -1,16 +1,24 @@
 """Load replays into memory into a format that can be used with torch."""
 import abc
+import datetime
 import itertools
+import json
+import logging
 import numpy as np
 import os
 import torch
 
+from pathlib import Path
 from boxcars_py import parse_replay
 from carball_lite import game
 from torch.utils.data import Dataset
 
-from . import manifest
-from . import player_cache
+from . import player_cache as pc
+from . import mmr
+from ._replay_meta import ReplayMeta, PlatformPlayer
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_carball_game(replay_path):
@@ -31,53 +39,162 @@ def get_carball_game(replay_path):
 
 
 class ReplaySet(abc.ABC):
-    """Class representing a collection of replays"""
+    """Abstract base class for objects representing a collection of replays."""
+
+    @classmethod
+    def cached(cls, cache_directory, *args, **kwargs):
+        """Return a cached version of this the replay set."""
+        return CachedReplaySet(cls(*args, **kwargs), cache_directory, **kwargs)
 
     @abc.abstractmethod
+    def get_replay_uuids(self) -> [str]:
+        """Get the replay uuids that are a part of this dataset."""
+        pass
+
+    @abc.abstractmethod
+    def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
+        """Get the replay tensor and player order associated with the provided uuid."""
+        pass
+
+
+class CachedReplaySet(ReplaySet):
+    """Wrapper for a replay set that caches the tensors that are provided by `get_replay_tensor`."""
+
+    _player_order_extension = "replay_meta"
+
+    def __init__(
+            self, replay_set: ReplaySet, cache_directory: Path, cache_extension="pt", **kwargs
+    ):
+        """Initialize the cached replay set."""
+        self._replay_set = replay_set
+        self._cache_directory = cache_directory
+        self._cache_extension = cache_extension
+        if not os.path.exists(self._cache_directory):
+            os.makedirs(self._cache_directory)
+
     def get_replay_uuids(self):
-        pass
+        """Get the replay uuids that are a part of this dataset."""
+        self._replay_set.get_replay_uuids()
 
-    @abc.abstractmethod
-    def get_carball_game(self, uuid) -> game.Game:
-        pass
+    def _cache_path_for_replay_with_extension(self, replay_id, extension):
+        return os.path.join(self._cache_directory, f"{replay_id}.{extension}")
+
+    def _get_tensor_and_meta_path(self, uuid):
+        tensor_path = self._cache_path_for_replay(uuid, self._cache_extension)
+        meta_path = self._cache_path_for_replay(uuid, self._meta_extension)
+        return tensor_path, meta_path
+
+    def _maybe_load_from_cache(self, uuid):
+        tensor_path, meta_path = self._get_tensor_and_meta_path()
+        tensor_present = os.path.exists(tensor_path)
+        meta_present = os.path.exists(meta_path)
+        if tensor_present and meta_present:
+            with open(tensor_path, 'rb') as f:
+                tensor = torch.load(f)
+            with open(meta_path, 'rb') as f:
+                meta = ReplayMeta.from_dict(json.loads(f.read()))
+        elif tensor_present != meta_present:
+            logger.warn(
+                f"{tensor_path} exists: {tensor_present}" +
+                f"meta_present, {meta_path} exists: {meta_present}"
+            )
+            if not meta_present:
+                try:
+                    meta = self._replay_set.get_meta(uuid)
+                except Exception as e:
+                    logger.warn(f"Error trying to get only player meta {e}")
+                else:
+                    self._json_dump_meta(meta, meta_path)
+                    return self._maybe_load_from_cache(uuid)
+
+        return tensor, meta
+
+    def _save_to_cache(self, replay_id, replay_data, meta):
+        tensor_path, meta_path = self._get_tensor_and_meta_path()
+        with open(tensor_path, 'wb') as f:
+            torch.save(replay_data, f)
+        self._json_dump_meta(meta, meta_path)
+        return replay_data
+
+    def _json_dump_meta(self, meta: ReplayMeta, path):
+        with open(path, 'w') as f:
+            f.write(json.dumps(ReplayMeta.to_dict()))
+
+    def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
+        """Get the replay tensor and player meta associated with the provided uuid."""
+        return self._maybe_load_from_cache(uuid) or self._save_to_cache(
+            uuid, *self._replay_set.get_replay_tensor()
+        )
+
+    def __getattr__(self, name):
+        """Defer to self._replay_set."""
+        return getattr(self._replay_set, name)
+
+
+class DirectoryReplaySet(ReplaySet):
+    """A replay set that consists of replay files in a potentially nested directory."""
+
+    def __init__(self, filepath, replay_extension="replay", backup_get_meta=lambda uuid: None):
+        self._filepath = filepath
+        self._replay_extension = replay_extension
+        self._replay_id_paths = list(self._get_replay_ids())
+        self._replay_path_dict = dict(self._replay_id_paths)
+        self._backup_get_meta = backup_get_meta
+
+    def _get_replay_ids(self):
+        for root, _, files in os.walk(self._filepath):
+            for filename in files:
+                replay_id, extension = os.path.splitext(filename)
+                if extension and extension[1:] == self._replay_extension:
+                    replay_path = os.path.join(root, filename)
+                    yield replay_id, replay_path
+
+    def _replay_path(self, replay_id):
+        return os.path.join(self._filepath, f"{replay_id}.{self._replay_extension}")
+
+    def get_replay_uuids(self):
+        return [replay_id for replay_id, _ in self._replay_id_paths]
+
+    def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
+        """Get the replay tensor and player order associated with the provided uuid."""
+        replay_path = self._replay_path_dict[uuid]
+        converter = _CarballToTensorConverter(get_carball_game(replay_path))
+        tensor = converter.get_tensor()
+
+        try:
+            meta = converter.get_meta()
+        except Exception as e:
+            meta = self._backup_get_meta(uuid)
+
+            if meta is None:
+                raise Exception(f"Could not build meta for {uuid}, carball error {e}")
+            else:
+                if not converter.check_meta_player_order_matches(meta):
+                    raise Exception(f"The generated meta player order did not match the carball game order for {uuid}")
+
+        return tensor, meta
+
+
+def player_cache_label_lookup(
+        player_cache: pc.PlayerCache,
+        mmr_function=mmr.SeasonBasedPolyFitMMRCalculator.get_mmr_for_player_at_date,
+        *args, **kwargs,
+):
+    def lookup_label_for_player(player: PlatformPlayer, game_time: datetime.datetime):
+        data = player_cache.get_player_data(player)
+        return mmr_function(game_time, data)
+
+    return lookup_label_for_player
 
 
 class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
-    def __init__(
-            self, replay_set: ReplaySet, lookup_label,
-            cache_directory_name="__game_cache", cache_on_load=True, cache_extension="pt",
-    ):
+    def __init__(self, replay_set: ReplaySet, lookup_label):
         """Initialize the data loader."""
-        self._filepath = filepath
-        self._cache_directory_name = cache_directory_name
-        self._replay_extension = replay_extension
-        self._cache_on_load = cache_on_load
-        self._eager_labels = eager_labels
-        self._label_lookup = label_lookup
-        self._cache_extension = cache_extension
-        self._cache_directory = os.path.join(
-            self._filepath, self._cache_directory_name
-        )
-        if not os.path.exists(self._cache_directory):
-            os.makedirs(self._cache_directory)
-
-        self._replay_ids = list(self._get_replay_ids())
-
-    def _cache_path_for_replay(self, replay_id):
-        return os.path.join(self._cache_directory, f"{replay_id}.{self._cache_extension}")
-
-    def _maybe_load_from_cache(self, replay_id):
-        path = self._cache_path_for_replay(replay_id)
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                return torch.load(f)
-
-    def _save_replay_to_cache(self, replay_id, replay_data):
-        path = self._cache_path_for_replay(replay_id)
-        with open(path, 'wb') as f:
-            torch.save(replay_data, f)
+        self._replay_set = replay_set
+        self._replay_ids = list(replay_set.get_replay_uuids())
+        self._lookup_label = lookup_label
 
     def __len__(self):
         """Simply return the length of the replay ids calculated in init."""
@@ -85,29 +202,20 @@ class ReplayDataset(Dataset):
 
     def __getitem__(self, index):
         """Get the replay at the provided index."""
-        replay_id, replay_path = self._replay_ids[index]
+        if index < 0 or index > len(self._replay_ids):
+            raise KeyError
+        replay_tensor, meta = self._replay_set.get_replay_tensor(
+            self._replay_ids[index]
+        )
+        labels = torch.FloatTensor([
+            self._lookup_label(player, meta.datetime)
+            for player in meta.player_order
+        ])
 
-        from_cache = self._maybe_load_from_cache(replay_id)
-
-        if from_cache is not None:
-            return (from_cache, [0, 0])
-
-        carball_game = get_carball_game(replay_path)
-        converter = _CarballToTensorConverter(carball_game)
-        replay_data = converter.get_tensor()
-
-        label_dict = self._label_lookup(replay_id, replay_path, carball_game)
-
-        labels = torch.tensor([0 for player in converter.player_order])
-
-        if self._cache_on_load:
-            self._save_replay_to_cache(replay_id, replay_data)
-            self._labels_cache[replay_id] = labels
-
-        return replay_data, labels
+        return replay_tensor, labels
 
 
-class _CarballToTensorConverter(object):
+class _CarballToTensorConverter:
 
     PLAYER_COLUMNS = [
         'pos_x', 'pos_y', 'pos_z',
@@ -133,7 +241,7 @@ class _CarballToTensorConverter(object):
     def from_filepath(cls, filepath):
         return cls(get_carball_game(filepath))
 
-    def __init__(self, carball_game, include_time=True, ):
+    def __init__(self, carball_game, include_time=True):
         """Initialize the converter."""
         self.carball_game = carball_game
         self.orange_team = list(
@@ -147,9 +255,25 @@ class _CarballToTensorConverter(object):
         self.player_order = self.orange_team + self.blue_team
         self.include_time = include_time
 
+    def get_tensor_and_meta(self):
+        """Return a :py:class:`torch.Tensor` and a :py:class:`ReplayMeta` from the :py:class:`game.Game`."""
+        return self.get_tensor(), self.get_meta()
+
     def get_tensor(self):
         """Return a :py:class:`torch.Tensor` built from the provided carball game."""
         return torch.as_tensor(self.get_ndarray())
+
+    def check_meta_player_order_matches(self, meta: ReplayMeta):
+        for meta_player, carball_player in zip(meta.player_order, self.player_order):
+            assert meta_player.matches_carball(carball_player)
+
+    def get_meta(self, ensure_order_equality=True):
+        meta = ReplayMeta.from_carball_game(self.carball_game)
+
+        if ensure_order_equality:
+            self.check_player_order(meta)
+
+        return meta
 
     def get_ndarray(self):
         """Return a numpy array from the provided carball game."""

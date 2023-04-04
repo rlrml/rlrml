@@ -48,7 +48,7 @@ def _call_with_sys_argv(function):
 @_call_with_sys_argv
 def load_game_dataset(filepath):
     """Convert the game provided through sys.argv."""
-    dataset = load.ReplayDataset(filepath, eager_labels=False)
+    dataset = load.ReplayDataset(load.DirectoryReplaySet(filepath), None)
     for i in range(len(dataset)):
         print(i)
         try:
@@ -60,8 +60,7 @@ def load_game_dataset(filepath):
 @_call_with_sys_argv
 def convert_game(filepath):
     game = load.get_carball_game(filepath)
-    import ipdb; ipdb.set_trace()
-    converter = load._CarballToTensorConverter(game)
+    converter = load._CarballToTensorConverter(game).get_meta()
 
 
 @_call_with_sys_argv
