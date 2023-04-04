@@ -11,13 +11,6 @@ from . import tracker_network
 logger = logging.getLogger(__name__)
 
 
-# Remove this
-class PlayerNotFoundOnTrackerNetwork:
-    """Sentinel value used to indicate that the player can't be found on the tracker network."""
-
-    string = "PlayerNotFoundOnTrackerNetwork"
-
-
 class PlayerCacheError(Exception):
     """A base class for player cache errors."""
 
@@ -176,8 +169,6 @@ class PlayerCache:
         if result is None:
             raise PlayerCacheMissError()
         value = self._decode_value(result)
-        if value == PlayerNotFoundOnTrackerNetwork.string:
-            raise PlayerCacheStoredError({"type": "404", "__oldform__": True})
         if self.error_key in value:
             raise PlayerCacheStoredError(value[self.error_key])
         return value
@@ -233,7 +224,7 @@ class CachedGetPlayerData:
         try:
             player_data = self._get_player_data(player_meta)
         except tracker_network.Non200Exception as e:
-            logger.warn("Could not obtain an mmr value for {} due to {}".format(
+            logger.warn("Could not obtain data for {} due to {}".format(
                 player_meta, e
             ))
             if self._cache_misses and e.status_code in (404, 500):
