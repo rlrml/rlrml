@@ -3,17 +3,12 @@ import json
 import logging
 import os
 import plyvel
+import abc
 
 from . import tracker_network
 
 
 logger = logging.getLogger(__name__)
-
-
-def _use_tracker_url_suffix_as_key(player):
-    key_string = tracker_network.get_profile_suffix_for_player(player)
-    if key_string is not None:
-        return key_string.encode('utf-8')
 
 
 # Remove this
@@ -43,6 +38,94 @@ class PlayerCacheMissError(PlayerCacheError):
     pass
 
 
+class PlatformPlayer(abc.ABC):
+    """Object representing a rocket league player."""
+
+    @abc.abstractproperty
+    def platform(self):
+        """The platform of the players account."""
+        pass
+
+    @abc.abstractproperty
+    def tracker_identifier(self):
+        """The identifier to use to look up the players profile on the tracker network."""
+        pass
+
+    @abc.abstractproperty()
+    def name(self):
+        """The name of the player."""
+        pass
+
+    @property
+    def tracker_suffix(self):
+        """The url suffix that should be used to find the players profile on the tracker network."""
+        return f"{self.platform}/{self.tracker_identifier}"
+
+
+class SteamPlayer(PlatformPlayer):
+    """A player on the steam platform."""
+
+    def __init__(self, display_name, identifier):
+        self._display_name = display_name
+        self._identifier = identifier
+
+    @property
+    def platform(self):
+        return "steam"
+
+    @property
+    def tracker_identifier(self):
+        return self._identifier
+
+    @property
+    def name(self):
+        return self._display_name
+
+
+class _DisplayNameSuffixPlayer(PlatformPlayer):
+
+    platform_name = None
+
+    def __init__(self, display_name):
+        self._display_name = display_name
+
+    @property
+    def platform(self):
+        return self.platform_name
+
+    @property
+    def tracker_identifier(self):
+        return self._display_name
+
+    @property
+    def name(self):
+        return self._display_name
+
+
+class EpicPlayer(_DisplayNameSuffixPlayer):
+
+    platform_name = "epic"
+
+
+class PsnPlayer(_DisplayNameSuffixPlayer):
+
+    platform_name = "psn"
+
+
+class XboxPlayer(_DisplayNameSuffixPlayer):
+
+    platform_name = "xbl"
+
+
+def _use_tracker_url_suffix_as_key(player):
+    if isinstance(player, PlatformPlayer):
+        return player.tracker_suffix.encode('utf-8')
+
+    key_string = tracker_network.get_profile_suffix_for_player(player)
+    if key_string is not None:
+        return key_string.encode('utf-8')
+
+
 class PlayerCache:
     """Encapsulates the player cache."""
 
@@ -61,26 +144,26 @@ class PlayerCache:
         self._player_id_db = self._db.prefixed_db("player-id-".encode('utf-8'))
         self._key_fn = key_fn
 
-    def get_player_data_no_err(self, player):
+    def get_player_data_no_err(self, player: PlatformPlayer):
         """Get the data of the provided player catching errors if they occur."""
         try:
             return self.get_player_data(player)
         except PlayerCacheError:
             pass
 
-    def get_player_data(self, player):
+    def get_player_data(self, player: PlatformPlayer):
         """Get the data of the provided player."""
         key = self._key_for_player(player)
         if key is None:
             return None
         return self._get_data_from_key(key)
 
-    def insert_data_for_player(self, player, meta: dict):
+    def insert_data_for_player(self, player, data):
         """Insert the provided data for given player."""
         key = self._key_for_player(player)
         if key is not None:
             return self._player_id_db.put(
-                key, json.dumps(meta).encode('utf-8')
+                key, json.dumps(data).encode('utf-8')
             )
 
     def insert_error_for_player(self, player, error_data):
