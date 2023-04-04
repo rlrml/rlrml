@@ -4,7 +4,7 @@ import itertools
 import numpy as np
 
 from matplotlib.figure import Figure
-from . import filters
+from . import mmr
 
 
 def _skip_in_between_seasons(fn):
@@ -50,7 +50,7 @@ def kelly_approach(self, season, dates, mmrs):
     self._plt.plot([dates[0], dates[-1]], [mmrs[0], mmrs[-1]])
 
     self._plt.hlines(
-        y=filters.kelly_mmr_function(mmrs), color='yellow',
+        y=mmr.kelly_mmr_function(mmrs), color='yellow',
         xmin=dates[0], xmax=dates[-1],
     )
 
@@ -89,11 +89,11 @@ class PlotGenerator:
         """Build a plot generator with some sensible defaults with player_data."""
         mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
         season_dates = kwargs.setdefault(
-            'season_dates', filters.tighten_season_dates(
-                filters.SEASON_DATES, move_end_date=2
+            'season_dates', mmr.tighten_season_dates(
+                mmr.SEASON_DATES, move_end_date=2
             )
         )
-        mmr_by_season = filters.split_mmr_history_into_seasons(
+        mmr_by_season = mmr.split_mmr_history_into_seasons(
             mmr_history, season_dates=season_dates
         )
         return cls(mmr_by_season, **kwargs)
@@ -101,7 +101,7 @@ class PlotGenerator:
     def __init__(
             self, mmr_by_season, figure=None,
             playlist_name='Ranked Doubles 2v2',
-            season_dates=filters.SEASON_DATES,
+            season_dates=mmr.SEASON_DATES,
             mmr_colors=("blue",), additional_plotters=(
                 make_plot_poly_fit(2),
             )

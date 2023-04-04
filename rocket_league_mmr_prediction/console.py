@@ -13,7 +13,7 @@ from pathlib import Path
 from . import load
 from . import migration
 from . import logger
-from . import filters
+from . import mmr
 
 
 def _add_rlrml_args(parser=None):
@@ -148,13 +148,13 @@ def get_player(filepath, player_key):
     player = player_get({"__tracker_suffix__": player_key})
     # print(player["platform"])
     # print(len(player['mmr_history']['Ranked Doubles 2v2']))
-    season_dates = filters.tighten_season_dates(filters.SEASON_DATES, move_end_date=1)
+    season_dates = mmr.tighten_season_dates(mmr.SEASON_DATES, move_end_date=1)
     # print(season_dates)
-    segmented_history = filters.split_mmr_history_into_seasons(
+    segmented_history = mmr.split_mmr_history_into_seasons(
         player['mmr_history']['Ranked Doubles 2v2'],
         season_dates=season_dates
     )
 
     print(json.dumps(
-        filters.calculate_all_season_statistics(segmented_history, keep_poly=False)
+        mmr.calculate_all_season_statistics(segmented_history, keep_poly=False)
     ))

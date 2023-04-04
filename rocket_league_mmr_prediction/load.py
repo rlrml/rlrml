@@ -1,4 +1,5 @@
 """Load replays into memory into a format that can be used with torch."""
+import abc
 import itertools
 import numpy as np
 import os
@@ -9,6 +10,7 @@ from carball_lite import game
 from torch.utils.data import Dataset
 
 from . import manifest
+from . import player_cache
 
 
 def get_carball_game(replay_path):
@@ -24,31 +26,28 @@ def get_carball_game(replay_path):
     # This is confusingly called loaded_json, but what is expected is actually a
     # python object. In our case we are not loading from json, but directly from
     # the replay file, but this is fine.
-    import ipdb; ipdb.set_trace()
     cb_game.initialize(loaded_json=boxcars_data)
     return cb_game
 
 
-default_manifest_loader = manifest.ManifestLoader()
+class ReplaySet(abc.ABC):
+    """Class representing a collection of replays"""
 
+    @abc.abstractmethod
+    def get_replay_uuids(self):
+        pass
 
-def default_label_lookup(rid, rfp, _):
-    return 0
-    mmr_dict, player_metas = default_manifest_loader.lookup_labels_by_manifest_file(rid, rfp)
-    for player, value in mmr_dict.items():
-        if value is None:
-            mmr_dict[player] = 0
-    return mmr_dict
+    @abc.abstractmethod
+    def get_carball_game(self, uuid) -> game.Game:
+        pass
 
 
 class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
     def __init__(
-            self, filepath, cache_directory_name="__game_cache",
-            replay_extension="replay", cache_on_load=True,
-            cache_extension="pt", label_lookup=default_label_lookup,
-            eager_labels=True,
+            self, replay_set: ReplaySet, lookup_label,
+            cache_directory_name="__game_cache", cache_on_load=True, cache_extension="pt",
     ):
         """Initialize the data loader."""
         self._filepath = filepath
@@ -65,22 +64,6 @@ class ReplayDataset(Dataset):
             os.makedirs(self._cache_directory)
 
         self._replay_ids = list(self._get_replay_ids())
-
-    def _get_replay_ids(self):
-        for root, _, files in os.walk(self._filepath):
-            for filename in files:
-                replay_id, extension = os.path.splitext(filename)
-                if extension and extension[1:] == self._replay_extension:
-                    replay_path = os.path.join(root, filename)
-                    if self._eager_labels:
-                        label_data = self._label_lookup(replay_id, replay_path, None)
-                        if any(value is None for value in label_data.values()):
-                            print(f"Skipping {replay_id} because of missing label")
-                            continue
-                        self._labels_cache[replay_id] = label_data
-                    yield replay_id, replay_path
-        if self._eager_labels:
-            self._save_labels_cache()
 
     def _cache_path_for_replay(self, replay_id):
         return os.path.join(self._cache_directory, f"{replay_id}.{self._cache_extension}")

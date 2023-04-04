@@ -6,7 +6,7 @@ from flask import Flask, request, redirect
 from markupsafe import escape
 from matplotlib.figure import Figure
 
-from . import filters
+from . import mmr
 from . import player_cache as pc
 from . import plot
 from .tracker_network import CloudScraperTrackerNetwork
@@ -53,13 +53,13 @@ def make_routes(filepath):
 
             try:
                 mmr_history = player_data['mmr_history']['Ranked Doubles 2v2']
-                season_dates = filters.tighten_season_dates(
-                    filters.SEASON_DATES, move_end_date=2
+                season_dates = mmr.tighten_season_dates(
+                    mmr.SEASON_DATES, move_end_date=2
                 )
-                mmr_by_season = filters.split_mmr_history_into_seasons(
+                mmr_by_season = mmr.split_mmr_history_into_seasons(
                     mmr_history, season_dates=season_dates
                 )
-                calc = filters.SeasonBasedPolyFitMMRCalculator(
+                calc = mmr.SeasonBasedPolyFitMMRCalculator(
                     mmr_by_season, season_dates=season_dates,
                 )
             except KeyError:

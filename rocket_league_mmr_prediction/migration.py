@@ -6,7 +6,7 @@ import os
 import itertools
 
 from . import player_cache as pc, tracker_network
-from . import filters
+from . import mmr
 from . import util
 
 
@@ -65,10 +65,10 @@ def copy_games_if_metadata_available_and_conditions_met(
                 break
 
             try:
-                filters.get_player_mmr_for_game(
+                mmr.get_player_mmr_for_game(
                     player_data, game, days_after=0, days_before=10
                 )
-            except filters.MMRFilteringError as e:
+            except mmr.MMRFilteringError as e:
                 reason = f"MMR filtering {e} {player_meta}"
 
         if reason is None:
