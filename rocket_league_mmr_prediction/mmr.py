@@ -341,6 +341,11 @@ class SeasonBasedPolyFitMMRCalculator:
         if estimate < game_season_stats['min']:
             return game_season_stats['min']
 
+        if  self._mmr_history_dict[season_number]:
+            last_date, last_mmr = self._mmr_history_dict[season_number][-1]
+            if game_date > last_date.date():
+                return last_mmr
+
         return estimate
 
     __call__ = get_mmr
