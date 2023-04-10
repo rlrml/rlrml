@@ -146,7 +146,9 @@ def split_mmr_history_into_seasons(mmr_history, season_dates=SEASON_DATES):
     ).get_history()
 
 
-def _calculate_basic_season_statistics(season_data, keep_poly=True, approx_increasing_allowance=.15):
+def _calculate_basic_season_statistics(
+        season_data, keep_poly=True, approx_increasing_allowance=.15,
+):
     mmrs = [mmr for _, mmr in season_data]
     dates = [d for d, _ in season_data]
 
@@ -235,7 +237,7 @@ class SeasonBasedPolyFitMMRCalculator:
     @classmethod
     def get_mmr_for_player_at_date(cls, game_date, *args, **kwargs):
         """Get the for the provided player at the provided game date."""
-        return cls(*args, **kwargs).get_mmr(game_date)
+        return cls.from_player_data(*args, **kwargs).get_mmr(game_date)
 
     @classmethod
     def from_player_data(cls, player_data, playlist_name='Ranked Doubles 2v2', **kwargs):
@@ -349,7 +351,6 @@ class SeasonBasedPolyFitMMRCalculator:
         return estimate
 
     __call__ = get_mmr
-
 
 
 class MMRFilteringError(Exception):

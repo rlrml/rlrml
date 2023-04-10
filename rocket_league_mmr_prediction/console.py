@@ -10,6 +10,8 @@ import xdg_base_dirs
 
 from pathlib import Path
 
+from . import tracker_network
+from . import player_cache as pc
 from . import load
 from . import migration
 from . import logger
@@ -33,6 +35,12 @@ def _add_rlrml_args(parser=None):
         type=Path,
         default=os.path.join(rlrml_directory, "replays")
     )
+    parser.add_argument(
+        '--tensor-cache',
+        help="The directory where the tensor cache is held",
+        type=Path,
+        default=os.path.join(rlrml_directory, "tensor_cache")
+    )
     return parser
 
 
@@ -45,16 +53,23 @@ def _call_with_sys_argv(function):
     return call_with_sys_argv
 
 
-@_call_with_sys_argv
-def load_game_dataset(filepath):
+def load_game_dataset():
     """Convert the game provided through sys.argv."""
-    dataset = load.ReplayDataset(load.DirectoryReplaySet(filepath), None)
-    for i in range(len(dataset)):
-        print(i)
-        try:
-            dataset[i]
-        except Exception as e:
-            print(e)
+    coloredlogs.install(level='INFO', logger=logger)
+    logger.setLevel(logging.INFO)
+    parser = _add_rlrml_args()
+    args = parser.parse_args()
+    print(args)
+    player_cache = pc.PlayerCache(str(args.player_cache))
+    cached_player_get = pc.CachedGetPlayerData(
+        player_cache, tracker_network.get_player_data_with_429_retry
+    ).get_player_data
+    assesor = load.ReplaySetAssesor(
+        load.DirectoryReplaySet.cached(args.tensor_cache, args.replay_path),
+        load.player_cache_label_lookup(cached_player_get)
+    )
+    result = assesor.get_replay_statuses()
+    import ipdb; ipdb.set_trace()
 
 
 @_call_with_sys_argv
@@ -97,9 +112,6 @@ def _iter_cache(filepath):
             if player_data["__error__"]["type"] == "500":
                 player_get({"__tracker_suffix__": player_key})
             missing_data += 1
-        elif cache.PlayerNotFoundOnTrackerNetwork.string == player_data:
-            missing_data += 1
-            old_form.append(player_key)
         else:
             if "platform" not in player_data and "mmr" in player_data:
                 print(f"Fixing {player_key}")
