@@ -74,8 +74,10 @@ def load_game_dataset():
 
 @_call_with_sys_argv
 def convert_game(filepath):
-    game = load.get_carball_game(filepath)
-    converter = load._CarballToTensorConverter(game).get_meta()
+    import boxcars_py
+    meta, _ = boxcars_py.get_replay_meta_and_numpy_ndarray(filepath)
+    from . import _replay_meta
+    print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta))
 
 
 @_call_with_sys_argv

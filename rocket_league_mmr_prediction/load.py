@@ -1,42 +1,21 @@
 """Load replays into memory into a format that can be used with torch."""
 import abc
 import datetime
-import itertools
 import json
 import logging
-import numpy as np
 import os
 import torch
+import boxcars_py
 
 from pathlib import Path
-from boxcars_py import parse_replay
-from carball_lite import game
 from torch.utils.data import Dataset
 
-from . import player_cache as pc
 from . import mmr
 from . import manifest
 from ._replay_meta import ReplayMeta, PlatformPlayer
 
 
 logger = logging.getLogger(__name__)
-
-
-def get_carball_game(replay_path):
-    """Take a path to the replay and output a Game object associated with that replay.
-
-    :param replay_path: Path to a specific replay.
-    :return: A :py:class:`game.Game`.
-    """
-    with open(replay_path, 'rb') as f:
-        buf = f.read()
-    boxcars_data = parse_replay(buf)
-    cb_game = game.Game()
-    # This is confusingly called loaded_json, but what is expected is actually a
-    # python object. In our case we are not loading from json, but directly from
-    # the replay file, but this is fine.
-    cb_game.initialize(loaded_json=boxcars_data)
-    return cb_game
 
 
 default_manifest_loader = manifest.ManifestLoader()
@@ -169,6 +148,7 @@ class DirectoryReplaySet(ReplaySet):
                     yield replay_id, replay_path
 
     def replay_path(self, replay_id):
+        """Get the path of the given replay id."""
         return self._replay_path_dict[replay_id]
 
     def get_replay_uuids(self):
@@ -177,24 +157,11 @@ class DirectoryReplaySet(ReplaySet):
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
-        converter = _CarballToTensorConverter(get_carball_game(replay_path))
-        tensor = converter.get_tensor()
-
-        try:
-            meta = converter.get_meta()
-        except Exception as e:
-            meta = self._backup_get_meta(uuid, replay_path)
-
-            if meta is None:
-                import ipdb; ipdb.set_trace()
-                raise Exception(f"Could not build meta for {uuid}, backup was None, converter error {e}")
-            else:
-                if not converter.check_meta_player_order_matches(meta):
-                    raise Exception(
-                        f"Player order did not match the carball game order for {uuid}"
-                    )
-
-        return tensor, meta
+        replay_meta, np_array = boxcars_py.get_player_order_and_numpy_ndarray(replay_path)
+        return (
+            torch.as_tensor(np_array),
+            ReplayMeta.from_boxcar_frames_meta(replay_meta),
+        )
 
 
 class ReplaySetAssesor:
@@ -300,135 +267,3 @@ class ReplayDataset(Dataset):
         ])
 
         return replay_tensor, labels
-
-
-class _CarballToTensorConverter:
-
-    PLAYER_COLUMNS = [
-        'pos_x', 'pos_y', 'pos_z',
-        'vel_x', 'vel_y', 'vel_z',
-        'rot_x', 'rot_y', 'rot_z',
-        'ang_vel_x', 'ang_vel_y', 'ang_vel_z',
-    ]
-
-    # These are also available
-    # 'ping', 'throttle', 'steer', 'handbrake', 'ball_cam', 'dodge_active',
-    # 'boost', 'boost_active', 'jump_active', 'double_jump_active',
-
-    BALL_COLUMNS = [
-        'pos_x', 'pos_y', 'pos_z', 'vel_x', 'vel_y', 'vel_z',
-    ]
-
-    # These are also available but probably not needed
-    EXTRA_BALL_COLUMNS = [
-        'rot_x', 'rot_y', 'rot_z', 'ang_vel_x', 'ang_vel_y', 'ang_vel_z', 'hit_team_no'
-    ]
-
-    @classmethod
-    def from_filepath(cls, filepath):
-        return cls(get_carball_game(filepath))
-
-    def __init__(self, carball_game, include_time=True):
-        """Initialize the converter."""
-        self.carball_game = carball_game
-        self.orange_team = list(
-            next(team.players for team in carball_game.teams if team.is_orange)
-        )
-        self.blue_team = list(
-            next(team.players for team in carball_game.teams if not team.is_orange)
-        )
-        self.orange_team.sort(key=lambda p: p.name)
-        self.blue_team.sort(key=lambda p: p.name)
-        self.player_order = self.orange_team + self.blue_team
-        self.include_time = include_time
-
-    def get_tensor_and_meta(self):
-        """Return a :py:class:`torch.Tensor` and a :py:class:`ReplayMeta` from a :py:class:`game.Game`."""
-        return self.get_tensor(), self.get_meta()
-
-    def get_tensor(self):
-        """Return a :py:class:`torch.Tensor` built from the provided carball game."""
-        return torch.as_tensor(self.get_ndarray())
-
-    def check_meta_player_order_matches(self, meta: ReplayMeta):
-        for meta_player, carball_player in zip(meta.player_order, self.player_order):
-            assert meta_player.matches_carball(carball_player)
-
-    def get_meta(self, ensure_order_equality=True):
-        meta = ReplayMeta.from_carball_game(self.carball_game)
-
-        if ensure_order_equality:
-            self.check_meta_player_order_matches(meta)
-
-        return meta
-
-    def get_ndarray(self):
-        """Return a numpy array from the provided carball game."""
-        first_relevant_frame = self._calculate_first_relevant_frame()
-        return np.stack([
-            self._construct_numpy_frame(i)
-            for i in self.carball_game.frames.index
-            if i >= first_relevant_frame
-        ])
-
-    @classmethod
-    def _get_data_frame_value_using_last_as_default(cls, column, carball_frame_index):
-        if carball_frame_index < 0:
-            # TODO: ..
-            raise Exception("Shoudln't happen")
-        if carball_frame_index in column.index:
-            return column[carball_frame_index]
-
-        import ipdb; ipdb.set_trace()
-        logger.warn(f"Missing value at {carball_frame_index} for column {column.name}")
-        cls._get_data_frame_value_using_last_as_default(column, carball_frame_index - 1)
-
-    def _construct_numpy_frame(self, carball_frame_index):
-        ball_values = (
-            self._get_data_frame_value_using_last_as_default(
-                self.carball_game.ball[column_name], carball_frame_index
-            )
-            for column_name in self.BALL_COLUMNS
-        )
-        player_values = (
-            self._get_data_frame_value_using_last_as_default(
-                player.data[column_name],
-                carball_frame_index
-            )
-            for player in self.player_order
-            for column_name in self.PLAYER_COLUMNS
-        )
-        return np.fromiter(
-            itertools.chain(
-                [self.carball_game.frames['time'][carball_frame_index]],
-                ball_values,
-                player_values
-            ),
-            dtype=float
-        )
-
-    def _calculate_first_relevant_frame(self):
-        initial_time_remaining = self.carball_game.frames.seconds_remaining.iloc[0]
-        for i, v in enumerate(self.carball_game.frames.seconds_remaining):
-            if v > initial_time_remaining:
-                raise Exception(
-                    "There should never be more time remaining than what we started with"
-                )
-            elif v < initial_time_remaining:
-                frame_index = i
-                break
-        else:
-            raise Exception("Time remaining never decreased")
-
-        time_at_most_one_second_in = self.carball_game.frames.time.iloc[frame_index]
-
-        for index in range(frame_index, -1, -1):
-            if time_at_most_one_second_in - self.carball_game.frames.time.iloc[index] > 1.01:
-                first_relevant_index = index
-                break
-        else:
-            raise Exception("This loop should terminate")
-
-        first_relevant_frame = self.carball_game.frames.index[first_relevant_index]
-
-        return first_relevant_frame

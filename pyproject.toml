@@ -9,7 +9,7 @@ packages = [{include = "rocket_league_mmr_prediction"}]
 python = "^3.10"
 torch = "^2.0.0"
 numpy = "^1.24.2"
-carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
+boxcars-py = { git = "https://github.com/CUBTeamRocket/boxcars-py" }
 aiofiles = "^23.1.0"
 nvidia-cuda-cupti-cu11 = "11.7.101"
 plyvel = "^1.5.0"

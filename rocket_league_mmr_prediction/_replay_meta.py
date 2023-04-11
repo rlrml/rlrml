@@ -2,18 +2,21 @@ import abc
 import datetime
 import logging
 
-from carball_lite.player import Player as CarballPlayer
-from carball_lite.game import Game as CarballGame
-
 
 logger = logging.getLogger(__name__)
+
+
+class UnknownPlatform(Exception):
+
+    def __init__(self, platform):
+        self.platform = platform
 
 
 class _PlatformPlayerType(abc.ABCMeta):
     def __init__(self, name, bases, attrs):
         if self.platform is not None:
             self.type_to_class[self.platform] = self
-        for carball_platform_name in self.carball_platform_names:
+        for carball_platform_name in self.header_platform_names:
             self.carball_type_to_class[carball_platform_name] = self
 
         for ballchasing_platform_name in self.ballchasing_platform_names:
@@ -29,7 +32,7 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     ballchasing_type_to_class = {}
 
     platform = None
-    carball_platform_names = []
+    header_platform_names = []
     ballchasing_platform_names = []
 
     @abc.abstractproperty
@@ -56,11 +59,11 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
         return self.type_to_class[obj[self.type_attribute]].from_dict(obj)
 
     @classmethod
-    def from_carball_player(cls, player: CarballPlayer):
+    def from_carball_player(cls, player):
         try:
             class_type = cls.carball_type_to_class[player.platform['value']]
-        except AttributeError:
-            import ipdb; ipdb.set_trace()
+        except (AttributeError, KeyError):
+            return None
         return class_type.from_carball_player(player)
 
     @classmethod
@@ -68,7 +71,16 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
         class_type = cls.ballchasing_type_to_class[player["id"]["platform"]]
         return class_type.from_ballchasing_player(player)
 
-    def matches_carball(self, player: CarballPlayer):
+    @classmethod
+    def from_header_stats(cls, header_stats: dict):
+        platform = header_stats['Platform']['value']
+        try:
+            class_type = cls.ballchasing_type_to_class[platform]
+        except KeyError:
+            raise UnknownPlatform(platform)
+        return class_type.from_header_stats(header_stats)
+
+    def matches_carball(self, player):
         try:
             return self.from_carball_player(player) == self
         except Exception as e:
@@ -83,7 +95,7 @@ class SteamPlayer(PlatformPlayer):
     """A player on the steam platform."""
 
     platform = "steam"
-    carball_platform_names = ['OnlinePlatform_Steam']
+    header_platform_names = ['OnlinePlatform_Steam']
     ballchasing_platform_names = ["steam"]
 
     def __init__(self, display_name, identifier):
@@ -117,8 +129,12 @@ class SteamPlayer(PlatformPlayer):
         return cls(player["name"], player["id"]["id"])
 
     @classmethod
-    def from_carball_player(cls, player: CarballPlayer):
+    def from_carball_player(cls, player):
         return cls(player.name, player.online_id)
+
+    @classmethod
+    def from_header_stats(cls, header_stats: dict):
+        return cls(header_stats['OnlineID'], header_stats['Name'])
 
 
 class _DisplayNameSuffixPlayer(PlatformPlayer):
@@ -145,32 +161,36 @@ class _DisplayNameSuffixPlayer(PlatformPlayer):
         }
 
     @classmethod
-    def from_carball_player(cls, player: CarballPlayer):
+    def from_carball_player(cls, player):
         return cls(player.name)
 
     @classmethod
     def from_ballchasing_player(cls, player):
         return cls(player["name"])
 
+    @classmethod
+    def from_header_stats(cls, header_stats: dict):
+        return cls(header_stats['Name'])
+
 
 class EpicPlayer(_DisplayNameSuffixPlayer):
 
     platform = "epic"
-    carball_platform_names = ['OnlinePlatform_Epic']
+    header_platform_names = ['OnlinePlatform_Epic']
     ballchasing_platform_names = ["epic"]
 
 
 class PsnPlayer(_DisplayNameSuffixPlayer):
 
     platform = "psn"
-    carball_platform_names = ['OnlinePlatform_PS4']
+    header_platform_names = ['OnlinePlatform_PS4']
     ballchasing_platform_names = ["ps4"]
 
 
 class XboxPlayer(_DisplayNameSuffixPlayer):
 
     platform = "xbl"
-    carball_platform_names = ['OnlinePlatform_Dingo']
+    header_platform_names = ['OnlinePlatform_Dingo']
     ballchasing_platform_names = ["xbox"]
 
 
@@ -182,12 +202,22 @@ class ReplayMeta:
         """Create a :py:class:`ReplayMeta` from a dictionary."""
         return cls(
             datetime.datetime.fromisoformat(obj["datetime"]),
-            [PlatformPlayer.from_dict(player) for player in obj["orange_players"]],
-            [PlatformPlayer.from_dict(player) for player in obj["blue_players"]]
+            [PlatformPlayer.from_dict(player) for player in obj["team_zero"]],
+            [PlatformPlayer.from_dict(player) for player in obj["team_one"]]
         )
 
     @classmethod
-    def from_carball_game(cls, game: CarballGame):
+    def from_boxcar_frames_meta(cls, meta):
+        # players should already be ordered with team 0 coming first and team 1 second
+        headers = dict(meta['all_headers'])
+        return cls(
+            datetime.datetime.strptime(headers['Date'], "%Y-%m-%d %H-%M-%S"),
+            map(PlatformPlayer.from_header_stats, meta['team_zero']),
+            map(PlatformPlayer.from_header_stats, meta['team_one']),
+        )
+
+    @classmethod
+    def from_carball_game(cls, game):
         """Create a :py:class:`ReplayMeta` from a :py:class:`CarballGame`."""
         game_datetime = datetime.datetime.strptime(game.properties['Date'], "%Y-%m-%d %H-%M-%S")
         orange_team = list(
@@ -228,21 +258,19 @@ class ReplayMeta:
 
     def __init__(
             self, replay_datetime: datetime.datetime,
-            orange_order: [PlatformPlayer], blue_order: [PlatformPlayer]
+            team_zero: [PlatformPlayer], team_one: [PlatformPlayer]
     ):
         self.datetime = replay_datetime
-        self.orange_players = orange_order
-        self.blue_players = blue_order
+        self.team_zero = team_zero
+        self.team_one = team_one
 
     def to_dict(self):
         return {
             "datetime": self.datetime.isoformat(),
-            "orange_players": [player.to_dict() for player in self.orange_players],
-            "blue_players": [player.to_dict() for player in self.blue_players]
+            "team_zero": [player.to_dict() for player in self.team_zero],
+            "team_one": [player.to_dict() for player in self.team_one]
         }
 
     @property
     def player_order(self):
-        self.orange_players.sort(key=lambda p: p.name)
-        self.blue_players.sort(key=lambda p: p.name)
-        return self.orange_players + self.blue_players
+        return self.team_zero + self.team_one
