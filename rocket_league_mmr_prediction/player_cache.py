@@ -153,7 +153,12 @@ class CachedGetPlayerData:
                     player_meta, {"type": str(e.status_code)}
                 )
         else:
-            player_data["player_metadata"] = player_meta
+            meta_dict = (
+                player_meta.to_dict()
+                if isinstance(player_meta, PlatformPlayer)
+                else player_meta
+            )
+            player_data["player_metadata"] = meta_dict
             self._player_cache.insert_data_for_player(player_meta, player_data)
 
         return self._player_cache.get_player_data_no_err(player_meta)

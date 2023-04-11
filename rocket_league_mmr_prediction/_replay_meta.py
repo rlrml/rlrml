@@ -16,8 +16,8 @@ class _PlatformPlayerType(abc.ABCMeta):
     def __init__(self, name, bases, attrs):
         if self.platform is not None:
             self.type_to_class[self.platform] = self
-        for carball_platform_name in self.header_platform_names:
-            self.carball_type_to_class[carball_platform_name] = self
+        for header_platform_name in self.header_platform_names:
+            self.header_type_to_class[header_platform_name] = self
 
         for ballchasing_platform_name in self.ballchasing_platform_names:
             self.ballchasing_type_to_class[ballchasing_platform_name] = self
@@ -28,7 +28,7 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     """Object representing a rocket league player."""
     type_attribute = "__platform_player_type__"
     type_to_class = {}
-    carball_type_to_class = {}
+    header_type_to_class = {}
     ballchasing_type_to_class = {}
 
     platform = None
@@ -61,7 +61,7 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     @classmethod
     def from_carball_player(cls, player):
         try:
-            class_type = cls.carball_type_to_class[player.platform['value']]
+            class_type = cls.header_type_to_class[player.platform['value']]
         except (AttributeError, KeyError):
             return None
         return class_type.from_carball_player(player)
@@ -75,7 +75,7 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     def from_header_stats(cls, header_stats: dict):
         platform = header_stats['Platform']['value']
         try:
-            class_type = cls.ballchasing_type_to_class[platform]
+            class_type = cls.header_type_to_class[platform]
         except KeyError:
             raise UnknownPlatform(platform)
         return class_type.from_header_stats(header_stats)
@@ -134,7 +134,7 @@ class SteamPlayer(PlatformPlayer):
 
     @classmethod
     def from_header_stats(cls, header_stats: dict):
-        return cls(header_stats['OnlineID'], header_stats['Name'])
+        return cls(header_stats['Name'], header_stats['OnlineID'])
 
 
 class _DisplayNameSuffixPlayer(PlatformPlayer):
@@ -212,8 +212,8 @@ class ReplayMeta:
         headers = dict(meta['all_headers'])
         return cls(
             datetime.datetime.strptime(headers['Date'], "%Y-%m-%d %H-%M-%S"),
-            map(PlatformPlayer.from_header_stats, meta['team_zero']),
-            map(PlatformPlayer.from_header_stats, meta['team_one']),
+            [PlatformPlayer.from_header_stats(p['stats']) for p in meta['team_zero']],
+            [PlatformPlayer.from_header_stats(p['stats']) for p in meta['team_one']],
         )
 
     @classmethod

@@ -62,7 +62,7 @@ def load_game_dataset():
     print(args)
     player_cache = pc.PlayerCache(str(args.player_cache))
     cached_player_get = pc.CachedGetPlayerData(
-        player_cache, tracker_network.get_player_data_with_429_retry
+        player_cache, tracker_network.get_player_data_with_429_retry()
     ).get_player_data
     assesor = load.ReplaySetAssesor(
         load.DirectoryReplaySet.cached(args.tensor_cache, args.replay_path),

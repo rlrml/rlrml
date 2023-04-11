@@ -9,6 +9,8 @@ import requests
 from io import BytesIO
 from email.parser import BytesParser
 
+from . import _replay_meta
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,11 @@ def get_mmr_history_uri_by_id(tracker_player_id):
 
 def get_profile_uri_for_player(player):
     """Get the uri that should be used to retrieve mmr info from the given player dictionary."""
-    suffix = get_profile_suffix_for_player(player)
+    suffix = (
+        player.tracker_suffix
+        if isinstance(player, _replay_meta.PlatformPlayer)
+        else get_profile_suffix_for_player(player)
+    )
     return f"https://api.tracker.gg/api/v2/rocket-league/standard/profile/{suffix}"
 
 

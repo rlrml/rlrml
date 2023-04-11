@@ -157,7 +157,7 @@ class DirectoryReplaySet(ReplaySet):
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
-        replay_meta, np_array = boxcars_py.get_player_order_and_numpy_ndarray(replay_path)
+        replay_meta, np_array = boxcars_py.get_replay_meta_and_numpy_ndarray(replay_path)
         return (
             torch.as_tensor(np_array),
             ReplayMeta.from_boxcar_frames_meta(replay_meta),
@@ -207,7 +207,6 @@ class ReplaySetAssesor:
         try:
             tensor, meta = self._replay_set.get_replay_tensor(uuid)
         except Exception as e:
-            raise e
             logger.warn(f"Tensor load failure for {uuid}, {e}")
             return self.TensorFail(e)
 
