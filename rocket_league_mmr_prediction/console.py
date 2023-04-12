@@ -185,3 +185,14 @@ def get_player(filepath, player_key):
     print(json.dumps(
         mmr.calculate_all_season_statistics(segmented_history, keep_poly=False)
     ))
+
+
+def setup_system_bus():
+    import sdbus
+    sdbus.set_default_bus(sdbus.sd_bus_open_system())
+
+
+def proxy():
+    setup_system_bus()
+    from .network import proxy
+    proxy.app.run(port=5002)

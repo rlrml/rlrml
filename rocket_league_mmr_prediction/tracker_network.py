@@ -15,6 +15,9 @@ from . import _replay_meta
 logger = logging.getLogger(__name__)
 
 
+default_tracker_uri = "https://api.tracker.gg"
+
+
 class Non200Exception(Exception):
     """Exception raised when a tracker network http request gives a non-200 response."""
 
@@ -24,19 +27,19 @@ class Non200Exception(Exception):
         self.response_headers = response_headers or {}
 
 
-def get_mmr_history_uri_by_id(tracker_player_id):
+def get_mmr_history_uri_by_id(tracker_player_id, base_uri=default_tracker_uri):
     """Get the uri at which mmr history for the given player can be found."""
-    return f"https://api.tracker.gg/api/v1/rocket-league/player-history/mmr/{tracker_player_id}"
+    return f"{base_uri}/api/v1/rocket-league/player-history/mmr/{tracker_player_id}"
 
 
-def get_profile_uri_for_player(player):
+def get_profile_uri_for_player(player, base_uri=default_tracker_uri):
     """Get the uri that should be used to retrieve mmr info from the given player dictionary."""
     suffix = (
         player.tracker_suffix
         if isinstance(player, _replay_meta.PlatformPlayer)
         else get_profile_suffix_for_player(player)
     )
-    return f"https://api.tracker.gg/api/v2/rocket-league/standard/profile/{suffix}"
+    return f"{base_uri}/api/v2/rocket-league/standard/profile/{suffix}"
 
 
 def get_profile_suffix_for_player(player):
@@ -119,9 +122,10 @@ def combine_profile_and_mmr_json(data):
 class CloudScraperTrackerNetwork:
     """Use the cloudscraper library to perform requests to the tracker network."""
 
-    def __init__(self, scraper=None):
+    def __init__(self, scraper=None, base_uri="https://api.tracker.gg"):
         """Initialize this class."""
         self._scraper = scraper or cloudscraper.create_scraper(delay=1, browser="chrome")
+        self._base_uri = base_uri
 
     def refresh_scraper(self):
         """Make a new scraper."""
