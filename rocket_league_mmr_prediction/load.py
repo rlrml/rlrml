@@ -218,7 +218,11 @@ class ReplaySetAssesor:
             for uuid in self._replay_set.get_replay_uuids()
         }
 
-    known_errors = ["ActorId(-1) not found", "Player team unknown"]
+    known_errors = [
+        "ActorId(-1) not found",
+        "Player team unknown",
+        "Players found in frames that were not part of"
+    ]
 
     def _get_player_labels(self, meta):
         player_labels = []
