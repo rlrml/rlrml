@@ -162,10 +162,16 @@ def _calculate_basic_season_statistics(
     first_date = dates[0]
     day_deltas = [(date - first_date).days for date in dates]
 
+    values['point_count'] = len(mmrs)
+
+    if values['point_count'] < 5:
+        return values
+
     try:
         poly = np.polynomial.Polynomial.fit(day_deltas, mmrs, 3)
-    except np.linalg.LinAlgError:
-        pass
+    except np.linalg.LinAlgError as e:
+        logger.info(f"Fitting error {e}")
+        import ipdb; ipdb.set_trace()
     else:
         roots = poly.deriv().roots()
         relevant_roots = [
@@ -196,7 +202,6 @@ def _calculate_basic_season_statistics(
         if keep_poly:
             values['poly'] = poly
 
-    values['point_count'] = len(mmrs)
 
     return values
 
@@ -242,7 +247,7 @@ class SeasonBasedPolyFitMMRCalculator:
     @classmethod
     def from_player_data(cls, player_data, playlist_name='Ranked Doubles 2v2', **kwargs):
         """Extract the relevant values from player_data to initialize this class."""
-        mmr_history = player_data['mmr_history'][playlist_name]
+        mmr_history = player_data.get('mmr_history', {}).get(playlist_name, [])
         season_dates = kwargs.setdefault(
             'season_dates', tighten_season_dates(SEASON_DATES)
         )

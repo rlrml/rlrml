@@ -3,6 +3,7 @@ import abc
 import datetime
 import json
 import logging
+import numbers
 import os
 import torch
 import boxcars_py
@@ -118,11 +119,20 @@ class CachedReplaySet(ReplaySet):
         with open(path, 'w') as f:
             f.write(json.dumps(meta.to_dict()))
 
+    def get_replay_meta(self, uuid) -> ReplayMeta:
+        meta_path = self._cache_path_for_replay_with_extension(uuid, self._meta_extension)
+        with open(meta_path, 'rb') as f:
+            return ReplayMeta.from_dict(json.loads(f.read()))
+
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player meta associated with the provided uuid."""
         return self._maybe_load_from_cache(uuid) or self._save_to_cache(
             uuid, *self._replay_set.get_replay_tensor(uuid)
         )
+
+    def is_cached(self, uuid) -> bool:
+        tensor_path, meta_path = self._get_tensor_and_meta_path(uuid)
+        return os.path.exists(tensor_path) and os.path.exists(meta_path)
 
     def __getattr__(self, name):
         """Defer to self._replay_set."""
@@ -157,11 +167,16 @@ class DirectoryReplaySet(ReplaySet):
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
+        logger.info(f"Loading replay from {replay_path}")
         replay_meta, np_array = boxcars_py.get_replay_meta_and_numpy_ndarray(replay_path)
         return (
             torch.as_tensor(np_array),
             ReplayMeta.from_boxcar_frames_meta(replay_meta),
         )
+
+
+class LabelValueWasNone(Exception):
+    pass
 
 
 class ReplaySetAssesor:
@@ -175,7 +190,7 @@ class ReplaySetAssesor:
         def __init__(self, player_labels):
             self.player_labels = player_labels
 
-    class FailedStatus(ReplayStatus):
+    class FailedStatus(ReplayStatus, Exception):
         ready = False
 
         def __init__(self, exception):
@@ -203,23 +218,57 @@ class ReplaySetAssesor:
             for uuid in self._replay_set.get_replay_uuids()
         }
 
-    def _get_replay_status(self, uuid, load_tensor=True):
-        try:
-            tensor, meta = self._replay_set.get_replay_tensor(uuid)
-        except Exception as e:
-            logger.warn(f"Tensor load failure for {uuid}, {e}")
-            return self.TensorFail(e)
+    known_errors = ["ActorId(-1) not found", "Player team unknown"]
 
+    def _get_player_labels(self, meta):
         player_labels = []
         for player in meta.player_order:
             try:
-                player_labels.append(self._label_lookup(player, meta.datetime.date()))
+                player_label_value = self._label_lookup(player, meta.datetime.date())
             except mmr.NoMMRHistory as e:
-                return self.LabelFail(player, e)
+                raise self.LabelFail(player, e)
             except Exception as e:
                 raise e
-                logger.warn(f"Label failure for {uuid}, {e}")
-                return self.LabelFail(player, e)
+            else:
+                if isinstance(player_label_value, numbers.Number):
+                    player_labels.append(player_label_value)
+                else:
+                    raise self.LabelFail(player, LabelValueWasNone())
+
+        return player_labels
+
+    def _should_reraise(self, e):
+        try:
+            exception_text = e.args[0]
+        except Exception:
+            pass
+        else:
+            for error_text in self.known_errors:
+                if error_text in exception_text:
+                    return False
+        return True
+
+    def _get_replay_status(self, uuid, load_tensor=True):
+        if (
+                isinstance(self._replay_set, CachedReplaySet) and not
+                load_tensor and self._replay_set.is_cached(uuid)
+        ):
+            meta = self._replay_set.get_replay_meta(uuid)
+        else:
+            try:
+                _, meta = self._replay_set.get_replay_tensor(uuid)
+            except Exception as e:
+                logger.warn(f"Tensor load failure for {uuid}, {e}")
+                if self._should_reraise(e):
+                    raise e
+                else:
+                    return self.TensorFail(e)
+
+        try:
+            player_labels = self._get_player_labels(meta)
+        except self.LabelFail as e:
+            logger.warn(f"Label failure for {uuid}, {e}")
+            return e
 
         logger.info(f"Replay {uuid} passed.")
         return self.PassedStatus(player_labels)

@@ -1,6 +1,7 @@
 import abc
 import datetime
 import logging
+import itertools
 
 
 logger = logging.getLogger(__name__)
@@ -15,25 +16,32 @@ class UnknownPlatform(Exception):
 class _PlatformPlayerType(abc.ABCMeta):
     def __init__(self, name, bases, attrs):
         if self.platform is not None:
-            self.type_to_class[self.platform] = self
+            self.name_to_class[self.platform] = self
         for header_platform_name in self.header_platform_names:
-            self.header_type_to_class[header_platform_name] = self
-
+            self.header_name_to_class[header_platform_name] = self
         for ballchasing_platform_name in self.ballchasing_platform_names:
-            self.ballchasing_type_to_class[ballchasing_platform_name] = self
+            self.ballchasing_name_to_class[ballchasing_platform_name] = self
+        for remote_id_name in self.remote_id_platform_names:
+            self.remote_id_name_to_class[remote_id_name] = self
         super().__init__(name, bases, attrs)
 
 
 class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     """Object representing a rocket league player."""
     type_attribute = "__platform_player_type__"
-    type_to_class = {}
-    header_type_to_class = {}
-    ballchasing_type_to_class = {}
+    name_to_class = {}
+    header_name_to_class = {}
+    ballchasing_name_to_class = {}
+    remote_id_name_to_class = {}
 
     platform = None
     header_platform_names = []
     ballchasing_platform_names = []
+    remote_id_platform_names = []
+
+    def __init__(self, display_name, online_id=None):
+        self._display_name = display_name
+        self._online_id = online_id
 
     @abc.abstractproperty
     def tracker_identifier(self):
@@ -56,29 +64,43 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
 
     @classmethod
     def from_dict(self, obj):
-        return self.type_to_class[obj[self.type_attribute]].from_dict(obj)
+        return self.name_to_class[obj[self.type_attribute]].from_dict(obj)
 
     @classmethod
     def from_carball_player(cls, player):
         try:
-            class_type = cls.header_type_to_class[player.platform['value']]
+            class_type = cls.header_name_to_class[player.platform['value']]
         except (AttributeError, KeyError):
             return None
         return class_type.from_carball_player(player)
 
     @classmethod
     def from_ballchasing_player(cls, player: dict):
-        class_type = cls.ballchasing_type_to_class[player["id"]["platform"]]
+        class_type = cls.ballchasing_name_to_class[player["id"]["platform"]]
         return class_type.from_ballchasing_player(player)
 
     @classmethod
     def from_header_stats(cls, header_stats: dict):
-        platform = header_stats['Platform']['value']
         try:
-            class_type = cls.header_type_to_class[platform]
+            platform = header_stats['Platform']['value']
+        except:
+            import ipdb; ipdb.set_trace()
+        try:
+            class_type = cls.header_name_to_class[platform]
         except KeyError:
             raise UnknownPlatform(platform)
         return class_type.from_header_stats(header_stats)
+
+    @classmethod
+    def from_boxcar_frames_player_info(cls, info):
+        try:
+            platform_name = next(iter(info['remote_id'].keys()))
+        except (KeyError, StopIteration):
+            raise
+        else:
+            class_type = cls.remote_id_name_to_class[platform_name]
+            return class_type.from_boxcar_frames_player_info(info)
+        return cls.from_header_stats(info)
 
     def matches_carball(self, player):
         try:
@@ -97,14 +119,16 @@ class SteamPlayer(PlatformPlayer):
     platform = "steam"
     header_platform_names = ['OnlinePlatform_Steam']
     ballchasing_platform_names = ["steam"]
+    remote_id_platform_names = ["Steam"]
 
-    def __init__(self, display_name, identifier):
-        self._display_name = display_name
-        self._identifier = identifier
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self._online_id is None:
+            import ipdb; ipdb.set_trace()
 
     @property
     def tracker_identifier(self):
-        return self._identifier
+        return self._online_id
 
     @property
     def name(self):
@@ -112,17 +136,17 @@ class SteamPlayer(PlatformPlayer):
 
     @classmethod
     def from_dict(cls, obj):
-        return cls(obj["display_name"], obj["identifier"])
+        return cls(obj["display_name"], online_id=obj.get("online_id", obj.get("identifier")))
 
     def to_dict(self):
         return {
             self.type_attribute: self.platform,
             "display_name": self._display_name,
-            "identifier": self._identifier
+            "online_id": self._online_id
         }
 
     def __eq__(self, other):
-        return self._identifier == other._identifier and self.platform == other.platform
+        return self._online_id == other._online_id and self.platform == other.platform
 
     @classmethod
     def from_ballchasing_player(cls, player):
@@ -134,13 +158,14 @@ class SteamPlayer(PlatformPlayer):
 
     @classmethod
     def from_header_stats(cls, header_stats: dict):
-        return cls(header_stats['Name'], header_stats['OnlineID'])
+        return cls(header_stats['Name'], online_id=header_stats['OnlineID'])
+
+    @classmethod
+    def from_boxcar_frames_player_info(cls, info):
+        return cls(info['name'], online_id=info['remote_id']['Steam'])
 
 
 class _DisplayNameSuffixPlayer(PlatformPlayer):
-
-    def __init__(self, display_name):
-        self._display_name = display_name
 
     @property
     def tracker_identifier(self):
@@ -172,12 +197,17 @@ class _DisplayNameSuffixPlayer(PlatformPlayer):
     def from_header_stats(cls, header_stats: dict):
         return cls(header_stats['Name'])
 
+    @classmethod
+    def from_boxcar_frames_player_info(cls, info):
+        return cls(info['name'])
+
 
 class EpicPlayer(_DisplayNameSuffixPlayer):
 
     platform = "epic"
     header_platform_names = ['OnlinePlatform_Epic']
     ballchasing_platform_names = ["epic"]
+    remote_id_platform_names = ["Epic"]
 
 
 class PsnPlayer(_DisplayNameSuffixPlayer):
@@ -185,6 +215,7 @@ class PsnPlayer(_DisplayNameSuffixPlayer):
     platform = "psn"
     header_platform_names = ['OnlinePlatform_PS4']
     ballchasing_platform_names = ["ps4"]
+    remote_id_platform_names = ["PlayStation", "PsyNet"]
 
 
 class XboxPlayer(_DisplayNameSuffixPlayer):
@@ -192,6 +223,7 @@ class XboxPlayer(_DisplayNameSuffixPlayer):
     platform = "xbl"
     header_platform_names = ['OnlinePlatform_Dingo']
     ballchasing_platform_names = ["xbox"]
+    remote_id_platform_names = ["Xbox"]
 
 
 class ReplayMeta:
@@ -212,8 +244,8 @@ class ReplayMeta:
         headers = dict(meta['all_headers'])
         return cls(
             datetime.datetime.strptime(headers['Date'], "%Y-%m-%d %H-%M-%S"),
-            [PlatformPlayer.from_header_stats(p['stats']) for p in meta['team_zero']],
-            [PlatformPlayer.from_header_stats(p['stats']) for p in meta['team_one']],
+            [PlatformPlayer.from_boxcar_frames_player_info(p) for p in meta['team_zero']],
+            [PlatformPlayer.from_boxcar_frames_player_info(p) for p in meta['team_one']],
         )
 
     @classmethod
@@ -273,4 +305,4 @@ class ReplayMeta:
 
     @property
     def player_order(self):
-        return self.team_zero + self.team_one
+        return itertools.chain(self.team_zero, self.team_one)

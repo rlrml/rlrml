@@ -68,14 +68,28 @@ def load_game_dataset():
         load.DirectoryReplaySet.cached(args.tensor_cache, args.replay_path),
         load.player_cache_label_lookup(cached_player_get)
     )
-    result = assesor.get_replay_statuses()
+    result = assesor.get_replay_statuses(load_tensor=False)
     import ipdb; ipdb.set_trace()
 
 
 @_call_with_sys_argv
 def convert_game(filepath):
     import boxcars_py
-    meta, _ = boxcars_py.get_replay_meta_and_numpy_ndarray(filepath)
+    try:
+        meta, tensor = boxcars_py.get_replay_meta_and_numpy_ndarray(filepath)
+    except (Exception) as e:
+        print(e)
+        import ipdb; ipdb.set_trace()
+        pass
+    import torch
+    logger.info("Making tensor")
+    tensor = torch.as_tensor(tensor)
+    logger.info("done making tensor")
+    with open("./saved_tensor.pt", 'wb') as f:
+        torch.save(tensor, f)
+
+    with open("./saved_tensor.pt", 'rb') as f:
+        tensor = torch.load(f)
     from . import _replay_meta
     print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta))
 
