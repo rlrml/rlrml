@@ -16,6 +16,7 @@ from . import load
 from . import migration
 from . import logger
 from . import mmr
+from . import util
 
 def load_rlrml_config(config_path=None):
     config_path = config_path or os.path.join(rlrml_config_directory(), "config.toml")
@@ -42,6 +43,7 @@ def _add_rlrml_args(parser=None):
     defaults = {
         "player-cache": os.path.join(rlrml_directory, "player_cache"),
         "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
+        "replay-path": os.path.join(rlrml_directory, "replay_path")
     }
     defaults.update(**config)
 
@@ -55,13 +57,19 @@ def _add_rlrml_args(parser=None):
         '--replay-path',
         help="The directory where game files are stored.",
         type=Path,
-        default=os.path.join(rlrml_directory, "replays")
+        default=defaults.get('replay-path')
     )
     parser.add_argument(
         '--tensor-cache',
         help="The directory where the tensor cache is held",
         type=Path,
-        default=defaults['player-cache']
+        default=defaults.get('player-cache')
+    )
+    parser.add_argument(
+        '--playlist',
+        help="The name of the playlist that is being used.",
+        type=str,               # TODO: Change this to an enum
+        default='Ranked Doubles 2v2'
     )
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -142,7 +150,6 @@ def fill_cache_with_tracker_rank(filepath):
 
 @_call_with_sys_argv
 def _iter_cache(filepath):
-    from . import util
     from . import player_cache as cache
     from . import tracker_network as tn
     import sdbus
@@ -242,3 +249,12 @@ def proxy():
     setup_system_bus()
     from .network import proxy
     proxy.app.run(port=5002)
+
+
+def get_cache_answer_uuids():
+    parser = _add_rlrml_args()
+    args = parser.parse_args()
+    player_cache = pc.PlayerCache(str(args.player_cache))
+    uuids = list(util.get_cache_answer_uuids_in_directory(args.replay_path, player_cache))
+    print(len(uuids))
+    import ipdb; ipdb.set_trace()

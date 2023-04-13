@@ -41,6 +41,7 @@ get_player = 'rocket_league_mmr_prediction.console:get_player'
 convert_game = 'rocket_league_mmr_prediction.console:convert_game'
 proxy = 'rocket_league_mmr_prediction.console:proxy'
 ballchasing_lookup = 'rocket_league_mmr_prediction.console:ballchasing_lookup'
+get_cache_answer_uuids = 'rocket_league_mmr_prediction.console:get_cache_answer_uuids'
 
 [build-system]
 requires = ["poetry-core"]
