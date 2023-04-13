@@ -42,7 +42,10 @@ class ParallelDownloaderConfig(abc.ABC):
 
     @abc.abstractmethod
     def get_filter_task(self, session, task_meta):
-        """Return a coroutine to filter the provided task."""
+        """Return a coroutine to filter the provided task. Returns a tuple of
+        (bool, task_meta), where the bool indicates whether or not the task
+        should be enqueued.
+        """
         pass
 
     def regular_callback(self, invocation):
