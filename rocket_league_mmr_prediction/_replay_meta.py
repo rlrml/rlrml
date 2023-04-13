@@ -214,7 +214,7 @@ class PsnPlayer(_DisplayNameSuffixPlayer):
 
     platform = "psn"
     header_platform_names = ['OnlinePlatform_PS4']
-    ballchasing_platform_names = ["ps4"]
+    ballchasing_platform_names = ["ps4", "psynet"]
     remote_id_platform_names = ["PlayStation", "PsyNet"]
 
 
