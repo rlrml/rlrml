@@ -262,12 +262,13 @@ class SeasonBasedPolyFitMMRCalculator:
     def __init__(
             self, mmr_history_by_season, season_dates=SEASON_DATES, season_dp_threshold=20,
             dynamic_max_poly_max_gap=lambda _: 125, min_max_proximity_threshold=75,
+            stats=None
     ):
         """Init with the relevant mmr data and calculate statistics."""
         self._season_dates = season_dates
         self._mmr_history_by_season = mmr_history_by_season
         self._mmr_history_dict = dict(self._mmr_history_by_season)
-        self._stats = calculate_all_season_statistics(
+        self._stats = stats or calculate_all_season_statistics(
             self._mmr_history_by_season
         )
         self._season_stats = dict(self._stats["season"])
@@ -351,7 +352,7 @@ class SeasonBasedPolyFitMMRCalculator:
         if estimate < game_season_stats['min']:
             return game_season_stats['min']
 
-        if  self._mmr_history_dict[season_number]:
+        if self._mmr_history_dict[season_number]:
             last_date, last_mmr = self._mmr_history_dict[season_number][-1]
             if game_date > last_date.date():
                 return last_mmr
