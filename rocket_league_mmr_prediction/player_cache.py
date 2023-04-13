@@ -54,7 +54,7 @@ class PlayerCache:
         """Initialize the metadata cache from a replay directory."""
         self._filepath = filepath
         self._db = plyvel.DB(self._filepath, create_if_missing=True)
-        self._player_name_db = self._db.prefixed_db("player-name-".encode('utf-8'))
+        self._player_error_db = self._db.prefixed_db("player-error-".encode('utf-8'))
         self._player_id_db = self._db.prefixed_db("player-id-".encode('utf-8'))
         self._key_fn = key_fn
 
@@ -85,10 +85,24 @@ class PlayerCache:
         assert "type" in error_data
         return self.insert_data_for_player(player, {self.error_key: error_data})
 
+    def has_error(self, player):
+        """Indicate whether or not the player has a stored error."""
+        try:
+            return self.error_key in self.get_player_data_no_err(player)
+        except Exception:
+            return False
+
+    def present_and_no_error(self, player):
+        """Check whether a player is present and errorless in the db."""
+        data_or_error = self.get_player_data(player) or {
+            self.error_key: {'type': "Not present"}
+        }
+        return self.error_key not in data_or_error
+
     def _get_data_from_key(self, key) -> dict:
         result = self._player_id_db.get(key)
         if result is None:
-            raise PlayerCacheMissError()
+            return None
         value = self._decode_value(result)
         if self.error_key in value:
             raise PlayerCacheStoredError(value[self.error_key])
@@ -129,18 +143,13 @@ class CachedGetPlayerData:
 
     def get_player_data(self, player_meta):
         """Get player data from cache or get_player_data."""
-        try:
-            return self._player_cache.get_player_data(player_meta)
-        except PlayerCacheMissError:
-            pass
-        except PlayerCacheStoredError as e:
-            logger.warn(f"Stored error {e}")
-            if "__oldform__" in e.data:
-                pass
-            elif e.data["type"] in self._retry_errors:
+
+        player_data = self._player_cache.get_player_data(player_meta)
+        if self._player_cache.error_key in player_data:
+            if player_data[self._player_cache.error_key]['type'] in self._retry_errors:
                 pass
             else:
-                return None
+                return player_data
 
         try:
             player_data = self._get_player_data(player_meta)
