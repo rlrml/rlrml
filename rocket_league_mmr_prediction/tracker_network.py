@@ -34,16 +34,14 @@ def get_mmr_history_uri_by_id(tracker_player_id, base_uri=default_tracker_uri):
 
 def get_profile_uri_for_player(player, base_uri=default_tracker_uri):
     """Get the uri that should be used to retrieve mmr info from the given player dictionary."""
-    suffix = (
-        player.tracker_suffix
-        if isinstance(player, _replay_meta.PlatformPlayer)
-        else get_profile_suffix_for_player(player)
-    )
-    return f"{base_uri}/api/v2/rocket-league/standard/profile/{suffix}"
+    return f"{base_uri}/api/v2/rocket-league/standard/profile/{get_profile_suffix_for_player(player)}"
 
 
 def get_profile_suffix_for_player(player):
     """Get the suffix to use to generate a players tracker network profile uri."""
+    if isinstance(player, _replay_meta.PlatformPlayer):
+        return player.tracker_suffix
+
     if "__tracker_suffix__" in player:
         return player["__tracker_suffix__"]
 
