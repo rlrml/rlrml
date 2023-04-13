@@ -17,17 +17,39 @@ from . import migration
 from . import logger
 from . import mmr
 
+def load_rlrml_config(config_path=None):
+    config_path = config_path or os.path.join(rlrml_config_directory(), "config.toml")
+    try:
+        import tomllib
+        with open(config_path, 'r') as f:
+            return tomllib.loads(f.read())['rlrml']
+    except Exception:
+        return {}
+
+
+def rlrml_config_directory():
+    return os.path.join(xdg_base_dirs.xdg_config_home(), "rlrml")
+
+
+def rlrml_data_directory():
+    return os.path.join(xdg_base_dirs.xdg_data_dirs()[0], "rlrml")
+
 
 def _add_rlrml_args(parser=None):
     parser = parser or argparse.ArgumentParser()
-
-    rlrml_directory = os.path.join(xdg_base_dirs.xdg_data_dirs()[0])
+    config = load_rlrml_config()
+    rlrml_directory = rlrml_data_directory()
+    defaults = {
+        "player-cache": os.path.join(rlrml_directory, "player_cache"),
+        "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
+    }
+    defaults.update(**config)
 
     parser.add_argument(
         '--player-cache',
         help="The directory where the player cache can be found.",
         type=Path,
-        default=os.path.join(rlrml_directory, "player_cache")
+        default=defaults['player-cache']
     )
     parser.add_argument(
         '--replay-path',
@@ -39,7 +61,11 @@ def _add_rlrml_args(parser=None):
         '--tensor-cache',
         help="The directory where the tensor cache is held",
         type=Path,
-        default=os.path.join(rlrml_directory, "tensor_cache")
+        default=defaults['player-cache']
+    )
+    parser.add_argument(
+        '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
+        default=defaults.get('ballchasing-token')
     )
     return parser
 
@@ -55,6 +81,7 @@ def _call_with_sys_argv(function):
 
 def load_game_dataset():
     """Convert the game provided through sys.argv."""
+    from . import filter
     coloredlogs.install(level='INFO', logger=logger)
     logger.setLevel(logging.INFO)
     parser = _add_rlrml_args()
@@ -64,9 +91,11 @@ def load_game_dataset():
     cached_player_get = pc.CachedGetPlayerData(
         player_cache, tracker_network.get_player_data_with_429_retry()
     ).get_player_data
+    scorer = filter.MMREstimateQualityFilter(cached_player_get)
     assesor = load.ReplaySetAssesor(
         load.DirectoryReplaySet.cached(args.tensor_cache, args.replay_path),
-        load.player_cache_label_lookup(cached_player_get)
+        load.player_cache_label_lookup(cached_player_get),
+        scorer=scorer
     )
     result = assesor.get_replay_statuses(load_tensor=False)
     import ipdb; ipdb.set_trace()
@@ -74,6 +103,7 @@ def load_game_dataset():
 
 @_call_with_sys_argv
 def convert_game(filepath):
+    _add_rlrml_args()
     import boxcars_py
     try:
         meta, tensor = boxcars_py.get_replay_meta_and_numpy_ndarray(filepath)
@@ -161,6 +191,22 @@ def host_plots(filepath):
     from . import _http_graph_server
     _http_graph_server.make_routes(filepath)
     _http_graph_server.app.run(port=5001)
+
+
+
+def ballchasing_lookup():
+    import requests
+    import json
+    from . import manifest
+    parser = _add_rlrml_args()
+    parser.add_argument('uuid')
+    args = parser.parse_args()
+    game_data = requests.get(
+        f"https://ballchasing.com/api/replays/{args.uuid}",
+        headers={'Authorization': args.ballchasing_token},
+    ).json()
+    mmr_data = manifest.get_mmr_data_from_manifest_game(game_data)
+    print(json.dumps(mmr_data))
 
 
 @_call_with_sys_argv

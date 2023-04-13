@@ -38,6 +38,9 @@ def tighten_season_dates(season_dates, move_end_date=1, move_start_date=1):
     ]
 
 
+TIGHTENED_SEASON_DATES = tighten_season_dates(SEASON_DATES)
+
+
 def get_season_for_date(date, season_dates=SEASON_DATES, strict=False):
     """Get the season that the given date occured in."""
     for season_number, (season_start, season_end) in season_dates:
@@ -274,7 +277,7 @@ class SeasonBasedPolyFitMMRCalculator:
 
     def get_mmr(self, game_date):
         """Calculate mmr using the polyratic fit of a players mmr within the relevant season."""
-        season_number = get_season_for_date(game_date)
+        season_number = get_season_for_date(game_date, season_dates=self._season_dates)
         game_season_stats = self._season_stats.get(season_number)
 
         if game_season_stats is None:

@@ -26,6 +26,7 @@
           packages = [ poetry2nix.packages.${system}.poetry ];
           LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib/:/run/opengl-driver/lib/";
           buildInputs = [
+              pkgs.python311
               pkgs.poetry
               pkgs.zlib
               pkgs.rustup

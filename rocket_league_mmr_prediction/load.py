@@ -208,9 +208,10 @@ class ReplaySetAssesor:
             self.player = player
             return super().__init__(*args)
 
-    def __init__(self, replay_set: ReplaySet, label_lookup):
+    def __init__(self, replay_set: ReplaySet, label_lookup, scorer=None):
         self._replay_set = replay_set
         self._label_lookup = label_lookup
+        self._scorer = scorer
 
     def get_replay_statuses(self, load_tensor=True):
         return {
@@ -275,6 +276,9 @@ class ReplaySetAssesor:
             return e
 
         logger.info(f"Replay {uuid} passed.")
+
+        if self._scorer is not None:
+            logger.info(self._scorer.score_replay_meta(meta))
         return self.PassedStatus(player_labels)
 
 

@@ -6,7 +6,7 @@ authors = ["Ivan Malison <IvanMalison@gmail.com>"]
 packages = [{include = "rocket_league_mmr_prediction"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 torch = "^2.0.0"
 numpy = "^1.24.2"
 boxcars-py = { git = "https://github.com/CUBTeamRocket/boxcars-py" }
@@ -40,6 +40,7 @@ rlbc_download = 'rocket_league_mmr_prediction.download.console:run'
 get_player = 'rocket_league_mmr_prediction.console:get_player'
 convert_game = 'rocket_league_mmr_prediction.console:convert_game'
 proxy = 'rocket_league_mmr_prediction.console:proxy'
+ballchasing_lookup = 'rocket_league_mmr_prediction.console:ballchasing_lookup'
 
 [build-system]
 requires = ["poetry-core"]
