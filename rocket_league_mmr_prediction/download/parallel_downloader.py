@@ -76,7 +76,7 @@ class ParallelDownloader:
         loop = asyncio.get_running_loop()
         queue_fill_task = loop.create_task(self._keep_filter_queue_filled())
         await asyncio.wait([
-            self._update_progress()
+            asyncio.create_task(self._update_progress())
         ] + [
             asyncio.create_task(self._download_until_count_reached())
             for _ in range(self._config.download_task_count)
