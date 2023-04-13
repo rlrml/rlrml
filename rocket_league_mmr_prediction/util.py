@@ -34,3 +34,12 @@ def vpn_cycled_cached_player_get(
             *args, **kwargs
         )(get_player_data)
     ).get_player_data
+
+
+def get_replay_uuids_in_directory(filepath, replay_extension="replay"):
+    for root, _, files in os.walk(filepath):
+        for filename in files:
+            replay_id, extension = os.path.splitext(filename)
+            if extension and extension[1:] == replay_extension:
+                replay_path = os.path.join(root, filename)
+                yield replay_id, replay_path

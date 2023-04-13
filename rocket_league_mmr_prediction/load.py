@@ -14,6 +14,7 @@ from torch.utils.data import Dataset
 from . import mmr
 from . import manifest
 from ._replay_meta import ReplayMeta, PlatformPlayer
+from . import util
 
 
 logger = logging.getLogger(__name__)
@@ -150,12 +151,9 @@ class DirectoryReplaySet(ReplaySet):
         self._backup_get_meta = backup_get_meta
 
     def _get_replay_ids(self):
-        for root, _, files in os.walk(self._filepath):
-            for filename in files:
-                replay_id, extension = os.path.splitext(filename)
-                if extension and extension[1:] == self._replay_extension:
-                    replay_path = os.path.join(root, filename)
-                    yield replay_id, replay_path
+        return util.get_replay_uuids_in_directory(
+            self._filepath, replay_extension=self._replay_extension
+        )
 
     def replay_path(self, replay_id):
         """Get the path of the given replay id."""
@@ -273,6 +271,8 @@ class ReplaySetAssesor:
             player_labels = self._get_player_labels(meta)
         except self.LabelFail as e:
             logger.warn(f"Label failure for {uuid}, {e}")
+            if self._scorer is not None:
+                logger.info(self._scorer.score_replay_meta(meta))
             return e
 
         logger.info(f"Replay {uuid} passed.")
@@ -289,6 +289,7 @@ def player_cache_label_lookup(
 ):
     def lookup_label_for_player(player: PlatformPlayer, game_time: datetime.datetime):
         data = get_player(player)
+
         if data is None:
             raise mmr.NoMMRHistory
 
