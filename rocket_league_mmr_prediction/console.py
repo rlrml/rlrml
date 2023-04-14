@@ -67,7 +67,7 @@ def _add_rlrml_args(parser=None):
         '--tensor-cache',
         help="The directory where the tensor cache is held",
         type=Path,
-        default=defaults.get('player-cache')
+        default=defaults.get('tensor-cache')
     )
     parser.add_argument(
         '--playlist',
