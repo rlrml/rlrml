@@ -45,11 +45,6 @@ class PlayerCache:
 
     error_key = "__error__"
 
-    @classmethod
-    def new_with_cache_directory(cls, replay_filepath):
-        """Create a new MetadataCache in the cache subdirectory of the provided filepath."""
-        return cls(os.path.join(replay_filepath, "cache"))
-
     def __init__(self, filepath, key_fn=_use_tracker_url_suffix_as_key):
         """Initialize the metadata cache from a replay directory."""
         self._filepath = filepath
@@ -104,8 +99,8 @@ class PlayerCache:
         if result is None:
             return None
         value = self._decode_value(result)
-        if self.error_key in value:
-            raise PlayerCacheStoredError(value[self.error_key])
+        # if self.error_key in value:
+        #     raise PlayerCacheStoredError(value[self.error_key])
         return value
 
     def _key_for_player(self, player) -> bytes:
@@ -145,11 +140,13 @@ class CachedGetPlayerData:
         """Get player data from cache or get_player_data."""
 
         player_data = self._player_cache.get_player_data(player_meta)
-        if self._player_cache.error_key in player_data:
+        if player_data and self._player_cache.error_key in player_data:
             if player_data[self._player_cache.error_key]['type'] in self._retry_errors:
                 pass
             else:
                 return player_data
+        elif player_data:
+            return player_data
 
         try:
             player_data = self._get_player_data(player_meta)
