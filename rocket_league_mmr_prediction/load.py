@@ -222,7 +222,8 @@ class ReplaySetAssesor:
         "Player team unknown",
         "Players found in frames that were not part of",
         "Replay is corrupt",
-        "Could not decode replay content data at offset"
+        "Could not decode replay content data at offset",
+        "Could not find actor for"
     ]
 
     def _get_player_labels(self, meta):
