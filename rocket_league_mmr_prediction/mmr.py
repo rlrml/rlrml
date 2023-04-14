@@ -173,8 +173,7 @@ def _calculate_basic_season_statistics(
     try:
         poly = np.polynomial.Polynomial.fit(day_deltas, mmrs, 3)
     except np.linalg.LinAlgError as e:
-        logger.info(f"Fitting error {e}")
-        import ipdb; ipdb.set_trace()
+        logger.info(f"calculate stats fitting error {e}")
     else:
         roots = poly.deriv().roots()
         relevant_roots = [
@@ -283,7 +282,7 @@ class SeasonBasedPolyFitMMRCalculator:
 
         if game_season_stats is None:
             # TODO: try to use previous season?
-            return 0
+            return
 
         # if game_season_stats['point_count'] < self._season_dp_threshold:
         #     return np.mean([game_season_stats['max'], game_season_stats['min']])
