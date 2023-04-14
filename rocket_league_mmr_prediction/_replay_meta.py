@@ -43,6 +43,10 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
         self._display_name = display_name
         self._online_id = online_id
 
+    def __repr__(self):
+        type_name = type(self).__name__
+        return f'{type_name}("{self._display_name}", online_id="{self._online_id}")'
+
     @abc.abstractproperty
     def tracker_identifier(self):
         """The identifier to use to look up the players profile on the tracker network."""
