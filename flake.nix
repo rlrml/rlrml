@@ -31,6 +31,7 @@
               pkgs.zlib
               pkgs.rustup
               pkgs.curl
+              pkgs.leveldb
             ];
 
             shellHook = ''
