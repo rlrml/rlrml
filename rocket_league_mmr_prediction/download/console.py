@@ -60,17 +60,17 @@ def run():
     async def check_for_cached_error(_, replay_meta):
         try:
             meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
-            should_enqueue = (not any(bool(player_cache.has_error(player)) for player in meta.player_order))
-            if not should_enqueue:
-                replay_downloader.logger.warn(f"Filtering due to error player {replay_meta}")
-            return (
-                should_enqueue,
-                replay_meta
-            )
+            for player in meta.player_order:
+                if player_cache.has_error(player):
+                    replay_downloader.logger.warn(
+                        f"Filtering due to error player {player.tracker_suffix}"
+                    )
+                    return False, replay_meta
+            return True, replay_meta
         except Exception as e:
             import ipdb; ipdb.set_trace()
             print(f"filtering error {e}")
-            return True
+            return True, replay_meta
 
     task_filter = replay_downloader.compose_filters(
         replay_downloader.require_at_least_one_non_null_mmr,
