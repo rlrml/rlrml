@@ -16,10 +16,10 @@ def _constant_retry(constant):
 
 
 def vpn_cycled_cached_player_get(
-        filepath, player_cache=None, status_codes=(429, 403), *args, **kwargs
+        player_cache, status_codes=(429, 403), *args, **kwargs
 ):
     """Apply vpn cycling and caching to `get_player_data`."""
-    player_cache = player_cache or pc.PlayerCache.new_with_cache_directory(filepath)
+    player_cache = player_cache or pc.PlayerCache(filepath)
     scraper_tn = tracker_network.CloudScraperTrackerNetwork()
     get_player_data = kwargs.pop(
         "get_player_data", scraper_tn.get_player_data

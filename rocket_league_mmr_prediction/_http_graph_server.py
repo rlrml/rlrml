@@ -23,9 +23,8 @@ def _img_from_fig(fig: Figure):
     return f"<img src='data:image/png;base64,{data}'/>"
 
 
-def make_routes(filepath):
+def make_routes(cache):
     """Build the routes to serve mmr graphs with the provided cache filepath."""
-    cache = pc.PlayerCache.new_with_cache_directory(filepath)
 
     @app.route("/at/<platform>/<player_name>")
     def starting_at(platform, player_name):

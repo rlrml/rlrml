@@ -220,7 +220,9 @@ class ReplaySetAssesor:
     known_errors = [
         "ActorId(-1) not found",
         "Player team unknown",
-        "Players found in frames that were not part of"
+        "Players found in frames that were not part of",
+        "Replay is corrupt",
+        "Could not decode replay content data at offset"
     ]
 
     def _get_player_labels(self, meta):
@@ -252,6 +254,7 @@ class ReplaySetAssesor:
         return True
 
     def _get_replay_status(self, uuid, load_tensor=True):
+        logger.info(self._replay_set.replay_path(uuid))
         if (
                 isinstance(self._replay_set, CachedReplaySet) and not
                 load_tensor and self._replay_set.is_cached(uuid)
@@ -272,7 +275,7 @@ class ReplaySetAssesor:
         except self.LabelFail as e:
             logger.warn(f"Label failure for {uuid}, {e}")
             if self._scorer is not None:
-                logger.info(self._scorer.score_replay_meta(meta))
+                logger.info(f"{uuid}: self._scorer.score_replay_meta(meta)")
             return e
 
         logger.info(f"Replay {uuid} passed.")
