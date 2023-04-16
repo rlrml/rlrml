@@ -299,7 +299,7 @@ class ReplaySetAssesor:
                     return self.TensorFail(e)
 
         if self._scorer is not None:
-            score_info = self._scorer.score_replay_meta(meta)
+            score_info = self._scorer.score_replay_meta(meta, playlist=self._playlist)
             score, estimates, scores = score_info
             logger.info(f"{uuid}: {score_info}")
             player_labels = [mmr for _, mmr in estimates]
