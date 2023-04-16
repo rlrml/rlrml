@@ -3,8 +3,115 @@ import datetime
 import logging
 import numpy as np
 
+from . import playlist
+
 
 logger = logging.getLogger(__name__)
+
+
+doubles_rank_tier_ranges = [
+    (float('-inf'), 167),
+    (170.0, 229.0),
+    (233.0, 294.0),
+    (289.0, 349.0),
+    (352.0, 412.0),
+    (410.0, 474.0),
+    (475.0, 526.0),
+    (535.0, 585.0),
+    (593.0, 645.0),
+    (654.0, 702.0),
+    (713.0, 764.0),
+    (774.0, 825.0),
+    (835.0, 900.0),
+    (915.0, 980.0),
+    (995.0, 1060.0),
+    (1075.0, 1179.0),
+    (1195.0, 1299.0),
+    (1315.0, 1419.0),
+    (1435.0, 1557.0),
+    (1574.0, 1702.0),
+    (1715.0, 1859.0),
+    (1862.0, float('inf'))
+]
+
+
+solo_rank_tier_ranges = [
+    (float('-inf'), 148),
+    (148.0, 212.0),
+    (213.0, 274.0),
+    (275.0, 334.0),
+    (335.0, 394.0),
+    (395.0, 454.0),
+    (455.0, 514.0),
+    (515.0, 574.0),
+    (575.0, 634.0),
+    (635.0, 694.0),
+    (695.0, 751.0),
+    (755.0, 807.0),
+    (815.0, 863.0),
+    (875.0, 923.0),
+    (935.0, 984.0),
+    (995.0, 1044.0),
+    (1055.0, 1112.0),
+    (1106.0, 1173.0),
+    (1175.0, 1227.0),
+    (1228.0, 1294.0),
+    (1286.0, 1353.0),
+    (1343, float('inf'))
+]
+
+
+rank_names = {
+    0: "Bronze",
+    1: "Silver",
+    2: "Gold",
+    3: "Platinum",
+    4: "Diamond",
+    5: "Champion",
+    6: "Grand Champion",
+    7: "Supersonic Legend",
+}
+
+
+class MMRToRank:
+
+    def __init__(self, rank_tier_ranges, round_up=False):
+        self._rank_tier_ranges = rank_tier_ranges
+        self._round_up = round_up
+
+    def get_rank_tier(self, mmr):
+        last_upper_bound = float('-inf')
+        for tier_number, (lower_bound, upper_bound) in enumerate(doubles_rank_tier_ranges):
+            if lower_bound <= mmr <= upper_bound:
+                return tier_number
+            elif last_upper_bound <= mmr <= lower_bound:
+                return float(tier_number) - .5
+            last_upper_bound = upper_bound
+        # Shouldn't be necessary
+        return tier_number
+
+    def get_rank_name(self, mmr):
+        return self.get_rank_name_and_tier(mmr)[0]
+
+    def get_rank_name_and_tier(self, mmr, round_up=False):
+        to_int_fn = np.ceil if round_up else np.floor
+        tier_number = int(to_int_fn(self.get_rank_tier(mmr)))
+        class_name = rank_names[int(np.floor(tier_number / 3))]
+        class_tier = (tier_number % 3) + 1
+        return class_name, class_tier
+
+    def get_rank_tier_name(self, mmr):
+        class_name, class_tier = self.get_rank_name_and_tier(mmr)
+        if class_name == "Supersonic Legend":
+            return class_name
+        return f"{class_name} {int(class_tier)}"
+
+
+playlist_to_converter = {
+    playlist.Playlist.DUEL: MMRToRank(solo_rank_tier_ranges),
+    playlist.Playlist.DOUBLES: MMRToRank(doubles_rank_tier_ranges),
+    playlist.Playlist.STANDARD: MMRToRank(doubles_rank_tier_ranges), # XXX: fixme use ranges for standard
+}
 
 
 SEASON_TEXT_DATES = enumerate([

@@ -38,16 +38,20 @@ class MMREstimateQualityFilter:
         self._score_game_count = score_game_count
         self._meta_score = meta_score
 
-    def score_replay_meta(self, meta: _replay_meta.ReplayMeta, abort_score=0.0):
+    def score_replay_meta(
+            self, meta: _replay_meta.ReplayMeta, abort_score=0.0,
+            playlist='Ranked Doubles 2v2'
+    ):
         game_date = meta.datetime.date()
         estimates = []
         scores = []
         for player in meta.player_order:
-            estimate, score = self.score_player_mmr_estimate(player, game_date)
+            estimate, score = self.score_player_mmr_estimate(player, game_date, playlist=playlist)
             estimates.append((player.tracker_suffix, estimate))
             scores.append(score)
-            # if estimate is None or self._meta_score(scores) < abort_score:
-            #     raise MetaScoreTooLow()
+            meta_score = self._meta_score(scores)
+            # if estimate is None or self._meta_score(scores) <= abort_score:
+            #     return meta_score, estimates, scores
 
         meta_score = self._meta_score(scores)
         return meta_score, estimates, scores
@@ -58,7 +62,7 @@ class MMREstimateQualityFilter:
     ):
         player_data = self._get_player_data(player)
 
-        if player_data is None:
+        if player_data is None or '__error__' in player_data:
             return 0, 0.0
 
         season_at_date = mmr.get_season_for_date(date, season_dates=self._season_dates)

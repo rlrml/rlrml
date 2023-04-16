@@ -20,6 +20,7 @@ from . import logger
 from . import vpn
 from . import util
 from . import filter
+from .playlist import Playlist
 
 
 def _load_rlrml_config(config_path=None):
@@ -47,7 +48,8 @@ def _add_rlrml_args(parser=None):
     defaults = {
         "player-cache": os.path.join(rlrml_directory, "player_cache"),
         "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
-        "replay-path": os.path.join(rlrml_directory, "replay_path")
+        "replay-path": os.path.join(rlrml_directory, "replay_path"),
+        "playlist": "Ranked Doubles 2v2",
     }
     defaults.update(**config)
 
@@ -71,8 +73,7 @@ def _add_rlrml_args(parser=None):
     )
     parser.add_argument(
         '--playlist',
-        help="The name of the playlist that is being used.",
-        type=str,               # TODO: Change this to an enum
+        help="The name (or number) of the playlist that is being used.",
         default='Ranked Doubles 2v2'
     )
     parser.add_argument(
@@ -142,6 +143,10 @@ class _RLRMLBuilder:
             return tracker_network.get_player_data_with_429_retry()
 
     @functools.cached_property
+    def playlist(self):
+        return Playlist.from_string_or_number(self._args.playlist)
+
+    @functools.cached_property
     def vpn_cycler(self):
         _setup_system_bus()
         return vpn.VPNCycler()
@@ -201,11 +206,13 @@ def load_game_dataset(builder):
         load.player_cache_label_lookup(
             builder.cached_get_player_data
         ),
-        scorer=builder.player_mmr_estimate_scorer
+        scorer=builder.player_mmr_estimate_scorer,
+        playlist=builder.playlist
     )
-    result = assesor.get_replay_statuses(load_tensor=False)
-    result = result
+    results = assesor.get_passed_stats()
+    print(results)
     import ipdb; ipdb.set_trace()
+    print(results)
 
 
 @_call_with_sys_argv

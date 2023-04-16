@@ -53,8 +53,6 @@ class ManifestLoader(object):
         directory = os.path.dirname(replay_filepath)
         manifest_filepath = os.path.join(directory, "manifest.json")
 
-        manifest_game = data[replay_id]
-
         return get_mmr_data_from_manifest_game(manifest_game), self._get_player_meta_dict(manifest_game)
 
     @staticmethod
@@ -62,6 +60,7 @@ class ManifestLoader(object):
         return dict((player["name"], player) for player in (
             manifest_game["orange"]["players"] + manifest_game["blue"]["players"]
         ))
+
 
 def get_mmr_data_from_manifest_game(manifest_game):
     """Get an mmr number from the rank/division for each player in a manifest game."""
