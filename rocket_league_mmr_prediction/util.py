@@ -1,6 +1,7 @@
 import backoff
-import os
 import boxcars_py
+import datetime
+import os
 
 from . import vpn
 from . import tracker_network
@@ -65,3 +66,19 @@ def player_data_present(replay_path, player_cache: pc.PlayerCache):
         boxcars_py.get_replay_meta(replay_path)
     )
     return all(player_cache.present_and_no_error(player) for player in meta.player_order)
+
+
+def closest_date_value(pairs, target_date):
+    min_difference = None
+    closest_pair = None, None
+
+    for date, value in pairs:
+        if isinstance(date, datetime.datetime):
+            date = date.date()
+        difference = abs(target_date - date)
+
+        if min_difference is None or difference < min_difference:
+            min_difference = difference
+            closest_pair = (date, value)
+
+    return closest_pair

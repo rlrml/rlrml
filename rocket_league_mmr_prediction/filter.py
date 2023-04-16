@@ -1,8 +1,10 @@
 import datetime
+import itertools
 import numpy as np
 
 from . import _replay_meta
 from . import mmr
+from . import util
 
 
 def scaled_sigmoid(x, base=3.7, denominator=20.0):
@@ -30,13 +32,14 @@ class MMREstimateQualityFilter:
     def __init__(
             self, get_player_data, season_dates=mmr.TIGHTENED_SEASON_DATES,
             estimate_calculator=None, score_game_count=scaled_sigmoid,
-            meta_score=np.prod
+            meta_score=np.prod, minimum_games_for_mmr=lambda mmr: mmr / 3
     ):
         self._get_player_data = get_player_data
         self._season_dates = season_dates
         self._estimate_caculator = estimate_calculator or default_estimate_calculator
         self._score_game_count = score_game_count
         self._meta_score = meta_score
+        self._minimum_games_for_mmr = minimum_games_for_mmr
 
     def score_replay_meta(
             self, meta: _replay_meta.ReplayMeta, abort_score=0.0,
@@ -65,8 +68,6 @@ class MMREstimateQualityFilter:
         if player_data is None or '__error__' in player_data:
             return 0, 0.0
 
-        season_at_date = mmr.get_season_for_date(date, season_dates=self._season_dates)
-
         try:
             playlist_mmr_history = player_data['mmr_history'][playlist]
         except Exception:
@@ -75,6 +76,10 @@ class MMREstimateQualityFilter:
         history_by_season = mmr.split_mmr_history_into_seasons(
             playlist_mmr_history,
             season_dates=self._season_dates
+        )
+        all_pairs = itertools.chain(*[data for _, data in history_by_season])
+        _, closest_value = util.closest_date_value(
+            all_pairs, date
         )
 
         stats = mmr.calculate_all_season_statistics(history_by_season)
@@ -89,10 +94,11 @@ class MMREstimateQualityFilter:
 
         all_time_max = max(all_mmrs)
         if history_estimate is None or score < .15:
-            if len(playlist_mmr_history) > 0 and player_data['stats']['wins'] > 150:
+            if len(playlist_mmr_history) > 0:
                 all_history_median = np.median([mmr for _, mmr in playlist_mmr_history])
-                if all_time_max - all_history_median < 200:
-                    return all_history_median, .15
+                estimate = max(all_history_median, closest_value or 0)
+                if player_data['stats']['wins'] > self._minimum_games_for_mmr(estimate):
+                    return estimate, .15
 
         return (history_estimate, score)
 
