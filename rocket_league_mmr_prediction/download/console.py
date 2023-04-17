@@ -9,7 +9,7 @@ import logging
 from . import replay_downloader
 from .progress import BarProgressHandler
 
-from ..filter import MMREstimateQualityFilter
+from ..score import MMREstimateScorer
 from .. import console
 from .._replay_meta import ReplayMeta
 from .. import player_cache as pc

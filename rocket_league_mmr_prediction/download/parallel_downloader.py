@@ -109,6 +109,7 @@ class ParallelDownloader:
             try:
                 await self._get_next_item_list_page()
             except Exception as e:
+                import ipdb; ipdb.set_trace()
                 print("Hit exception keeping queue filled {}".format(e))
                 raise e
 

@@ -3,8 +3,6 @@ import abc
 import datetime
 import json
 import logging
-import numbers
-import numpy as np
 import os
 import torch
 import boxcars_py
@@ -15,7 +13,7 @@ from torch.utils.data import Dataset
 from . import mmr
 from . import manifest
 from . import util
-from .playlist import Playlist
+
 from ._replay_meta import ReplayMeta, PlatformPlayer
 
 
@@ -173,159 +171,6 @@ class DirectoryReplaySet(ReplaySet):
             torch.as_tensor(np_array),
             ReplayMeta.from_boxcar_frames_meta(replay_meta),
         )
-
-
-class LabelValueWasNone(Exception):
-    pass
-
-
-class ReplaySetAssesor:
-
-    class ReplayStatus:
-        ready = None
-
-    class PassedStatus(ReplayStatus):
-        ready = True
-
-        def __init__(self, player_labels, score=0.0):
-            self.player_labels = player_labels
-            self.score = score
-
-    class FailedStatus(ReplayStatus, Exception):
-        ready = False
-
-        def __init__(self, exception):
-            self.exception = exception
-
-    class TensorFail(FailedStatus):
-        pass
-
-    class MetaFail(FailedStatus):
-        pass
-
-    class LabelFail(FailedStatus):
-
-        def __init__(self, player, *args):
-            self.player = player
-            return super().__init__(*args)
-
-    def __init__(
-            self, replay_set: ReplaySet, label_lookup, scorer=None,
-            playlist=Playlist.DOUBLES
-    ):
-        self._replay_set = replay_set
-        self._label_lookup = label_lookup
-        self._scorer = scorer
-        self._playlist = Playlist(playlist)
-
-    def get_replay_statuses(self, load_tensor=True):
-        return {
-            uuid: self._get_replay_status(uuid, load_tensor=load_tensor)
-            for uuid in self._replay_set.get_replay_uuids()
-        }
-
-    def get_replay_statuses_by_rank(self, load_tensor=True):
-        replay_statuses = self.get_replay_statuses(load_tensor=load_tensor)
-        passed_results = {}
-        for rank in mmr.rank_names.values():
-            passed_results[rank] = []
-        for uuid, status in replay_statuses.items():
-            if isinstance(status, self.PassedStatus):
-                rank = mmr.playlist_to_converter[self._playlist].get_rank_name(
-                    np.mean(status.player_labels)
-                )
-                passed_results[rank].append(status)
-        return passed_results
-
-    def get_passed_stats(self):
-        passed_statuses_by_rank = self.get_replay_statuses_by_rank(load_tensor=False)
-        return {
-            rank: (len(statuses), np.mean([status.score for status in statuses]))
-            for rank, statuses in passed_statuses_by_rank.items()
-        }
-
-    known_errors = [
-        "ActorId(-1) not found",
-        "Player team unknown",
-        "Players found in frames that were not part of",
-        "Replay is corrupt",
-        "Could not decode replay content data at offset",
-        "Could not find actor for"
-    ]
-
-    def _get_player_labels(self, meta):
-        player_labels = []
-        for player in meta.player_order:
-            try:
-                player_label_value = self._label_lookup(player, meta.datetime.date())
-            except mmr.NoMMRHistory as e:
-                raise self.LabelFail(player, e)
-            except Exception as e:
-                raise e
-            else:
-                if isinstance(player_label_value, numbers.Number):
-                    player_labels.append(player_label_value)
-                else:
-                    raise self.LabelFail(player, LabelValueWasNone())
-
-        return player_labels
-
-    def _should_reraise(self, e):
-        try:
-            exception_text = e.args[0]
-        except Exception:
-            pass
-        else:
-            for error_text in self.known_errors:
-                if error_text in exception_text:
-                    return False
-        return True
-
-    def _get_replay_status(self, uuid, load_tensor=True):
-        logger.info(self._replay_set.replay_path(uuid))
-        if (
-                isinstance(self._replay_set, CachedReplaySet) and not
-                load_tensor and self._replay_set.is_cached(uuid)
-        ):
-            meta = self._replay_set.get_replay_meta(uuid)
-        else:
-            try:
-                _, meta = self._replay_set.get_replay_tensor(uuid)
-            except Exception as e:
-                logger.warn(f"Tensor load failure for {uuid}, {e}")
-                if self._should_reraise(e):
-                    raise e
-                else:
-                    return self.TensorFail(e)
-
-        if self._scorer is not None:
-            score_info = self._scorer.score_replay_meta(meta, playlist=self._playlist)
-            score, estimates, scores = score_info
-            logger.info(f"{uuid}: {score_info}")
-            player_labels = [mmr for _, mmr in estimates]
-            if score <= 0.0:
-                logger.warn(f"{uuid} failed.")
-                return self.LabelFail(score_info, score)
-            return self.PassedStatus(
-                [label for label in player_labels if label is not None],
-                score=score
-            )
-        else:
-            result = self._check_labels(meta)
-            if isinstance(result, self.ReplayStatus):
-                return result
-            else:
-                player_labels = result
-
-        logger.info(f"Replay {uuid} passed.")
-        return self.PassedStatus(player_labels)
-
-    def _check_labels(self, meta):
-        try:
-            return self._get_player_labels(meta)
-        except self.LabelFail as e:
-            logger.warn(f"Label failure for {uuid}, {e}")
-            return e
 
 
 def player_cache_label_lookup(

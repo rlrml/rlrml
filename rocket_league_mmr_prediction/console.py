@@ -11,15 +11,16 @@ import xdg_base_dirs
 
 from pathlib import Path
 
-from . import tracker_network
-from . import player_cache as pc
-from . import load
-from . import manifest
 from . import _http_graph_server
+from . import score
+from . import load
 from . import logger
-from . import vpn
+from . import manifest
+from . import player_cache as pc
+from . import tracker_network
 from . import util
-from . import filter
+from . import vpn
+from .assess import ReplaySetAssesor
 from .playlist import Playlist
 
 
@@ -49,7 +50,7 @@ def _add_rlrml_args(parser=None):
         "player-cache": os.path.join(rlrml_directory, "player_cache"),
         "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
         "replay-path": os.path.join(rlrml_directory, "replay_path"),
-        "playlist": "Ranked Doubles 2v2",
+        "playlist": Playlist("Ranked Doubles 2v2"),
     }
     defaults.update(**config)
 
@@ -163,7 +164,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def player_mmr_estimate_scorer(self):
-        return filter.MMREstimateQualityFilter(
+        return score.MMREstimateScorer(
             self.cached_get_player_data
         )
 
@@ -175,6 +176,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def lookup_label(self):
+        # TODO: change this to use scorer
         # Perhaps allow settings that control whether any network is allowed?
         return load.player_cache_label_lookup(self.cached_get_player_data)
 
@@ -199,20 +201,15 @@ def _call_with_sys_argv(function):
 
 
 @_RLRMLBuilder.with_default
-def load_game_dataset(builder):
+def load_game_dataset(builder: _RLRMLBuilder):
     """Convert the game provided through sys.argv."""
-    assesor = load.ReplaySetAssesor(
+    assesor = ReplaySetAssesor(
         builder.cached_directory_replay_set,
-        load.player_cache_label_lookup(
-            builder.cached_get_player_data
-        ),
         scorer=builder.player_mmr_estimate_scorer,
         playlist=builder.playlist
     )
-    results = assesor.get_passed_stats()
-    print(results)
+    results = assesor.get_replay_statuses_by_rank(load_tensor=False)
     import ipdb; ipdb.set_trace()
-    print(results)
 
 
 @_call_with_sys_argv
