@@ -3,7 +3,6 @@ import argparse
 import backoff
 import coloredlogs
 import functools
-import itertools
 import logging
 import os
 import sys
@@ -239,7 +238,9 @@ def convert_game(filepath):
     _add_rlrml_args()
     import boxcars_py
     try:
-        meta, columns, tensor = boxcars_py.get_replay_meta_and_column_headers_and_numpy_ndarray(filepath)
+        meta, columns, tensor = boxcars_py.get_replay_meta_and_column_headers_and_numpy_ndarray(
+            filepath
+        )
     except (Exception) as e:
         print(e)
         import ipdb; ipdb.set_trace()
