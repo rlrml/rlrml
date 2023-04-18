@@ -1,4 +1,5 @@
 """Utilities for filtering games based on their metadata."""
+import enum
 import datetime
 import logging
 import numpy as np
@@ -9,7 +10,7 @@ from . import playlist
 logger = logging.getLogger(__name__)
 
 
-doubles_rank_tier_ranges = [
+normal_rank_tier_ranges = [
     (float('-inf'), 167),
     (170.0, 229.0),
     (233.0, 294.0),
@@ -61,16 +62,18 @@ solo_rank_tier_ranges = [
 ]
 
 
-rank_names = {
-    0: "Bronze",
-    1: "Silver",
-    2: "Gold",
-    3: "Platinum",
-    4: "Diamond",
-    5: "Champion",
-    6: "Grand Champion",
-    7: "Supersonic Legend",
-}
+class Rank(enum.StrEnum):
+    BRONZE = "Bronze"
+    SILVER = "Silver"
+    GOLD = "Gold"
+    PLATINUM = "Platinum"
+    DIAMOND = "Diamond"
+    CHAMPION = "Champion"
+    GRAND_CHAMPION = "Grand Champion"
+    SUPERSONIC_LEGEND = "Supersonic Legend"
+
+
+rank_number_to_name = dict(enumerate(list(Rank)))
 
 
 class MMRToRank:
@@ -81,7 +84,7 @@ class MMRToRank:
 
     def get_rank_tier(self, mmr):
         last_upper_bound = float('-inf')
-        for tier_number, (lower_bound, upper_bound) in enumerate(doubles_rank_tier_ranges):
+        for tier_number, (lower_bound, upper_bound) in enumerate(normal_rank_tier_ranges):
             if lower_bound <= mmr <= upper_bound:
                 return tier_number
             elif last_upper_bound <= mmr <= lower_bound:
@@ -96,7 +99,7 @@ class MMRToRank:
     def get_rank_name_and_tier(self, mmr, round_up=False):
         to_int_fn = np.ceil if round_up else np.floor
         tier_number = int(to_int_fn(self.get_rank_tier(mmr)))
-        class_name = rank_names[int(np.floor(tier_number / 3))]
+        class_name = rank_number_to_name[int(np.floor(tier_number / 3))]
         class_tier = (tier_number % 3) + 1
         return class_name, class_tier
 
@@ -109,8 +112,8 @@ class MMRToRank:
 
 playlist_to_converter = {
     playlist.Playlist.DUEL: MMRToRank(solo_rank_tier_ranges),
-    playlist.Playlist.DOUBLES: MMRToRank(doubles_rank_tier_ranges),
-    playlist.Playlist.STANDARD: MMRToRank(doubles_rank_tier_ranges), # XXX: fixme use ranges for standard
+    playlist.Playlist.DOUBLES: MMRToRank(normal_rank_tier_ranges),
+    playlist.Playlist.STANDARD: MMRToRank(normal_rank_tier_ranges),
 }
 
 

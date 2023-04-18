@@ -3,6 +3,7 @@ import argparse
 import backoff
 import coloredlogs
 import functools
+import itertools
 import logging
 import os
 import sys
@@ -176,9 +177,11 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def lookup_label(self):
-        # TODO: change this to use scorer
-        # Perhaps allow settings that control whether any network is allowed?
-        return load.player_cache_label_lookup(self.cached_get_player_data)
+        def get_player_label(player, date):
+            return self.player_mmr_estimate_scorer.score_player_mmr_estimate(
+                player, date, playlist=self.playlist
+            )[0]
+        return get_player_label
 
     @functools.cached_property
     def torch_dataset(self):
@@ -210,6 +213,25 @@ def load_game_dataset(builder: _RLRMLBuilder):
     )
     results = assesor.get_replay_statuses_by_rank(load_tensor=False)
     import ipdb; ipdb.set_trace()
+
+
+def create_symlink_replay_directory():
+    parser = _add_rlrml_args()
+    parser.add_argument('--count', type=int, default=1000)
+    parser.add_argument('target_directory')
+    args = parser.parse_args()
+    builder = _RLRMLBuilder(args)
+
+    assesor = ReplaySetAssesor(
+        builder.cached_directory_replay_set,
+        scorer=builder.player_mmr_estimate_scorer,
+        playlist=builder.playlist
+    )
+    top_scoring_replays = assesor.get_top_scoring_n_replay_per_rank(args.count)
+    all_uuids = [uuid for pairs in top_scoring_replays.values() for uuid, _ in pairs]
+    util.symlink_replays(
+        args.target_directory, all_uuids, builder.cached_directory_replay_set
+    )
 
 
 @_call_with_sys_argv
@@ -250,7 +272,6 @@ def proxy():
 
 @_RLRMLBuilder.with_default
 def get_cache_answer_uuids(builder):
-    builder = _RLRMLBuilder.default()
     uuids = list(util.get_cache_answer_uuids_in_directory(
         builder._args.replay_path, builder.player_cache
     ))

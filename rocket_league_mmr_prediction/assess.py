@@ -9,8 +9,10 @@ from . import mmr
 logger = logging.getLogger(__name__)
 
 
-class LabelValueWasNone(Exception):
-    pass
+def filter_meta_score_info_below(at_or_below):
+    def filter_by_score(status):
+        return status.score_info.meta_score > at_or_below
+    return filter_by_score
 
 
 class ReplaySetAssesor:
@@ -56,7 +58,7 @@ class ReplaySetAssesor:
     def get_replay_statuses_by_rank(self, load_tensor=True):
         replay_statuses = self.get_replay_statuses(load_tensor=load_tensor)
         results = {"Failed": {}}
-        for rank in mmr.rank_names.values():
+        for rank in mmr.rank_number_to_name.values():
             results[rank] = {}
         for uuid, status in replay_statuses.items():
             if status.ready:
@@ -70,6 +72,27 @@ class ReplaySetAssesor:
             else:
                 results["Failed"][uuid] = status
         return results
+
+    def get_top_scoring_n_replay_per_rank(
+            self, count_per_rank, filter_function=filter_meta_score_info_below(0)
+    ):
+        replay_statuses = self.get_replay_statuses_by_rank()
+        top_replays = {}
+        for rank, uuid_to_status in replay_statuses.items():
+            if not isinstance(rank, mmr.Rank):
+                continue
+            replay_pairs = [
+                pair for pair in uuid_to_status.items()
+                if filter_function(pair[1])
+            ]
+            replay_pairs.sort(key=lambda pair: pair[1].score_info.meta_score, reverse=True)
+            if len(replay_pairs) < count_per_rank:
+                logger.warning(
+                    f"Could only produce {len(replay_pairs)} "
+                    f"of the {count_per_rank} requested for {rank}"
+                )
+            top_replays[rank] = replay_pairs[:count_per_rank]
+        return top_replays
 
     known_errors = [
         "ActorId(-1) not found",
