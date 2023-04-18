@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "rocket-league-mmr-prediction"
+name = "rlrml"
 version = "0.1.0"
 description = ""
 authors = ["Ivan Malison <IvanMalison@gmail.com>"]
-packages = [{include = "rocket_league_mmr_prediction"}]
+packages = [{include = "rlrml"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -29,15 +29,15 @@ python-lsp-server = {extras = ["all"], version = "^1.7.1"}
 ipdb = "^0.13.13"
 
 [tool.poetry.scripts]
-load_game_dataset = 'rocket_league_mmr_prediction.console:load_game_dataset'
-host_mmr_plots = 'rocket_league_mmr_prediction.console:host_plots'
-rlbc_download = 'rocket_league_mmr_prediction.download.console:run'
-get_player = 'rocket_league_mmr_prediction.console:get_player'
-convert_game = 'rocket_league_mmr_prediction.console:convert_game'
-proxy = 'rocket_league_mmr_prediction.console:proxy'
-ballchasing_lookup = 'rocket_league_mmr_prediction.console:ballchasing_lookup'
-get_cache_answer_uuids = 'rocket_league_mmr_prediction.console:get_cache_answer_uuids'
-create_symlink_replay_directory = 'rocket_league_mmr_prediction.console:create_symlink_replay_directory'
+load_game_dataset = 'rlrml.console:load_game_dataset'
+host_mmr_plots = 'rlrml.console:host_plots'
+rlbc_download = 'rlrml.download.console:run'
+get_player = 'rlrml.console:get_player'
+convert_game = 'rlrml.console:convert_game'
+proxy = 'rlrml.console:proxy'
+ballchasing_lookup = 'rlrml.console:ballchasing_lookup'
+get_cache_answer_uuids = 'rlrml.console:get_cache_answer_uuids'
+create_symlink_replay_directory = 'rlrml.console:create_symlink_replay_directory'
 
 [build-system]
 requires = ["poetry-core"]
