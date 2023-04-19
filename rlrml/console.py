@@ -21,10 +21,7 @@ from . import player_cache as pc
 from . import tracker_network
 from . import util
 from . import vpn
-<<<<<<< HEAD
 from . import column_headers
-=======
->>>>>>> master
 from .assess import ReplaySetAssesor
 from .playlist import Playlist
 
@@ -254,7 +251,6 @@ def convert_game(filepath):
     _add_rlrml_args()
     import boxcars_py
     try:
-<<<<<<< HEAD
         meta, columns, tensor = boxcars_py.get_ndarray_with_info_from_replay_filepath(
             filepath
         )
@@ -268,11 +264,6 @@ def convert_game(filepath):
         for player_header in player_headers:
             print('----- player headers -----')
             print(columns[player_header[0]:player_header[1]+1])
-=======
-        meta, columns, tensor = boxcars_py.get_replay_meta_and_column_headers_and_numpy_ndarray(
-            filepath
-        )
->>>>>>> master
     except (Exception) as e:
         print(e)
         import ipdb; ipdb.set_trace()

@@ -280,7 +280,7 @@ develop = false
 type = "git"
 url = "https://github.com/CUBTeamRocket/boxcars-py"
 reference = "HEAD"
-resolved_reference = "8e374f0fe60d8a0698b6ae9980c669a9210b5173"
+resolved_reference = "546b208f41dbeeff0d37db44e5a2eea97a65d816"
 
 [[package]]
 name = "certifi"
