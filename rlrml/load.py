@@ -60,6 +60,9 @@ class CachedReplaySet(ReplaySet):
         """Get the replay uuids that are a part of this dataset."""
         return self._replay_set.get_replay_uuids()
 
+    def get_replay_tensor_with_headers(self, uuid):
+        return self._replay_set.get_replay_tensor_with_headers(uuid)
+
     def _cache_path_for_replay_with_extension(self, replay_id, extension):
         return os.path.join(self._cache_directory, f"{replay_id}.{extension}")
 
@@ -165,8 +168,8 @@ class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
     def __init__(
-            self, replay_set: ReplaySet, lookup_label,
-            preload=False, expected_label_count=None
+            self, replay_set: ReplaySet, lookup_label, expected_label_count,
+            preload=False,
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set
@@ -177,6 +180,11 @@ class ReplayDataset(Dataset):
         if preload:
             for i in range(len(self._replay_ids)):
                 self[i]
+
+    def get_shape_info(self):
+        tensor, _ = self[0]
+        # TODO: real headers here
+        return ["fake" for _ in tensor[0]], self._expected_label_count
 
     def _get_replay_labels(self, uuid, meta):
         try:

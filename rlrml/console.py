@@ -22,6 +22,7 @@ from . import tracker_network
 from . import util
 from . import vpn
 from .assess import ReplaySetAssesor
+from .model import train
 from .playlist import Playlist
 
 
@@ -320,9 +321,8 @@ def get_player():
 
 
 @_RLRMLBuilder.with_default
-def train(builder: _RLRMLBuilder):
-    from .model.load import batched_packed_loader
-    for batch, labels in batched_packed_loader(builder.torch_dataset):
-        import ipdb; ipdb.set_trace()
-        print(labels)
-    print("Done")
+def train_model(builder: _RLRMLBuilder):
+    trainer = train.ReplayModelTrainer.from_dataset(builder.torch_dataset)
+    trainer.train(10)
+    import ipdb; ipdb.set_trace()
+    print("Hey")
