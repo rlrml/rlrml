@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def filter_meta_score_info_below(at_or_below):
     def filter_by_score(status):
-        return status.score_info.meta_score > at_or_below
+        return status.ready and status.score_info.meta_score > at_or_below
     return filter_by_score
 
 
@@ -27,7 +27,7 @@ class ReplaySetAssesor:
 
         @property
         def ready(self):
-            return not any(mmr is None for _, mmr in self.score_info.estimates)
+            return not any(mmr is None or mmr == 0 for _, mmr in self.score_info.estimates)
 
     class FailedStatus(ReplayStatus, Exception):
         ready = False

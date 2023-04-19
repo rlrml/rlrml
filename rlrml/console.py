@@ -2,6 +2,7 @@
 import argparse
 import backoff
 import coloredlogs
+import datetime
 import functools
 import logging
 import os
@@ -65,6 +66,12 @@ def _add_rlrml_args(parser=None):
         help="The directory where game files are stored.",
         type=Path,
         default=defaults.get('replay-path')
+    )
+    parser.add_argument(
+        '--preload',
+        help="Whether or not to preload the dataset",
+        action='store_true',
+        default=False
     )
     parser.add_argument(
         '--tensor-cache',
@@ -177,6 +184,8 @@ class _RLRMLBuilder:
     @functools.cached_property
     def lookup_label(self):
         def get_player_label(player, date):
+            if isinstance(date, datetime.datetime):
+                date = date.date()
             return self.player_mmr_estimate_scorer.score_player_mmr_estimate(
                 player, date, playlist=self.playlist
             )[0]
@@ -184,7 +193,10 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def torch_dataset(self):
-        return load.ReplayDataset(self.cached_directory_replay_set, self.lookup_label)
+        return load.ReplayDataset(
+            self.cached_directory_replay_set, self.lookup_label,
+            preload=self._args.preload, expected_label_count=self.playlist.get_player_count()
+        )
 
     def decorate(self, fn):
         @functools.wraps(fn)
@@ -305,3 +317,12 @@ def get_player():
         {"__tracker_suffix__": args.player_key}
     )
     print(json.dumps(data))
+
+
+@_RLRMLBuilder.with_default
+def train(builder: _RLRMLBuilder):
+    from .model.load import batched_packed_loader
+    for batch, labels in batched_packed_loader(builder.torch_dataset):
+        import ipdb; ipdb.set_trace()
+        print(labels)
+    print("Done")

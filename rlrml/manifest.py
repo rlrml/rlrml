@@ -84,6 +84,9 @@ def _rank_tier_and_division_to_mmr(rank_tier, division):
 def get_mmr_from_manifest_player(player):
     """Get the an mmr number from the rank and division in the provided player meta data."""
     try:
-        return _rank_tier_and_division_to_mmr(player["rank"]["tier"], player["rank"]["division"])
+        rank_info = player["rank"]
     except KeyError:
-        pass
+        return None
+    else:
+        return _rank_tier_and_division_to_mmr(rank_info["tier"], rank_info.get("division", 1))
+

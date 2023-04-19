@@ -1,6 +1,5 @@
 """Load replays into memory into a format that can be used with torch."""
 import abc
-import datetime
 import json
 import logging
 import os
@@ -10,27 +9,15 @@ import boxcars_py
 from pathlib import Path
 from torch.utils.data import Dataset
 
-from . import mmr
-from . import manifest
 from . import util
-
-from ._replay_meta import ReplayMeta, PlatformPlayer
+from ._replay_meta import ReplayMeta
 
 
 logger = logging.getLogger(__name__)
 
 
-default_manifest_loader = manifest.ManifestLoader()
-
-
-def manifest_get_meta(_uuid, replay_path, manifest_loader=default_manifest_loader) -> ReplayMeta:
-    """Get a `ReplayMeta` instance from a manifest file in the same directory as the replay file."""
-    data = manifest_loader.get_raw_manifest_data_from_replay_filepath(replay_path)
-
-    if data is None:
-        return
-
-    return ReplayMeta.from_ballchasing_game(data)
+def get_meta_boxcars(_, filepath):
+    return ReplayMeta.from_boxcar_frames_meta(boxcars_py.get_replay_meta(filepath))
 
 
 class ReplaySet(abc.ABC):
@@ -59,7 +46,7 @@ class CachedReplaySet(ReplaySet):
 
     def __init__(
             self, replay_set: ReplaySet, cache_directory: Path, cache_extension="pt",
-            backup_get_meta=manifest_get_meta, **kwargs
+            backup_get_meta=get_meta_boxcars, **kwargs
     ):
         """Initialize the cached replay set."""
         self._replay_set = replay_set
@@ -93,7 +80,7 @@ class CachedReplaySet(ReplaySet):
             return tensor, meta
         elif tensor_present != meta_present:
             logger.warn(
-                f"{tensor_path} exists: {tensor_present} " +
+                f"{tensor_path} exists: {tensor_present} "
                 f"meta_present, {meta_path} exists: {meta_present}"
             )
             if not meta_present:
@@ -143,12 +130,11 @@ class CachedReplaySet(ReplaySet):
 class DirectoryReplaySet(ReplaySet):
     """A replay set that consists of replay files in a potentially nested directory."""
 
-    def __init__(self, filepath, replay_extension="replay", backup_get_meta=manifest_get_meta):
+    def __init__(self, filepath, replay_extension="replay", backup_get_meta=get_meta_boxcars):
         self._filepath = filepath
         self._replay_extension = replay_extension
         self._replay_id_paths = list(self._get_replay_ids())
         self._replay_path_dict = dict(self._replay_id_paths)
-        self._backup_get_meta = backup_get_meta
 
     def _get_replay_ids(self):
         return util.get_replay_uuids_in_directory(
@@ -166,37 +152,47 @@ class DirectoryReplaySet(ReplaySet):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
         logger.info(f"Loading replay from {replay_path}")
-        replay_meta, np_array = boxcars_py.get_replay_meta_and_numpy_ndarray(replay_path)
+        replay_meta, _, np_array = boxcars_py.get_ndarray_with_info_from_replay_filepath(
+            replay_path
+        )
         return (
             torch.as_tensor(np_array),
             ReplayMeta.from_boxcar_frames_meta(replay_meta),
         )
 
 
-def player_cache_label_lookup(
-        get_player,
-        mmr_function=mmr.SeasonBasedPolyFitMMRCalculator.get_mmr_for_player_at_date,
-        *args, **kwargs,
-):
-    def lookup_label_for_player(player: PlatformPlayer, game_time: datetime.datetime):
-        data = get_player(player)
-
-        if data is None:
-            raise mmr.NoMMRHistory
-
-        return mmr_function(game_time, data, *args, **kwargs)
-
-    return lookup_label_for_player
-
-
 class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
-    def __init__(self, replay_set: ReplaySet, lookup_label):
+    def __init__(
+            self, replay_set: ReplaySet, lookup_label,
+            preload=False, expected_label_count=None
+    ):
         """Initialize the data loader."""
         self._replay_set = replay_set
         self._replay_ids = list(replay_set.get_replay_uuids())
+        self._expected_label_count = expected_label_count
         self._lookup_label = lookup_label
+        self._label_cache = {}
+        if preload:
+            for i in range(len(self._replay_ids)):
+                self[i]
+
+    def _get_replay_labels(self, uuid, meta):
+        try:
+            return self._label_cache[uuid]
+        except KeyError:
+            pass
+        result = torch.FloatTensor([
+            self._lookup_label(player, meta.datetime)
+            for player in meta.player_order
+        ])
+        if self._expected_label_count:
+            assert len(result) == self._expected_label_count
+        if any(r == 0.0 for r in result):
+            raise Exception()
+        self._label_cache[uuid] = result
+        return result
 
     def __len__(self):
         """Simply return the length of the replay ids calculated in init."""
@@ -206,12 +202,8 @@ class ReplayDataset(Dataset):
         """Get the replay at the provided index."""
         if index < 0 or index > len(self._replay_ids):
             raise KeyError
-        replay_tensor, meta = self._replay_set.get_replay_tensor(
-            self._replay_ids[index]
-        )
-        labels = torch.FloatTensor([
-            self._lookup_label(player, meta.datetime)
-            for player in meta.player_order
-        ])
+        uuid = self._replay_ids[index]
+        replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
+        labels = self._get_replay_labels(uuid, meta)
 
         return replay_tensor, labels

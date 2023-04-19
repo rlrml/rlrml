@@ -47,6 +47,12 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
         type_name = type(self).__name__
         return f'{type_name}("{self._display_name}", online_id="{self._online_id}")'
 
+    def __hash__(self):
+        return hash(self.tracker_suffix)
+
+    def __eq__(self, other):
+        return self.tracker_suffix == other.tracker_suffix
+
     @abc.abstractproperty
     def tracker_identifier(self):
         """The identifier to use to look up the players profile on the tracker network."""

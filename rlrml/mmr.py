@@ -84,7 +84,7 @@ class MMRToRank:
 
     def get_rank_tier(self, mmr):
         last_upper_bound = float('-inf')
-        for tier_number, (lower_bound, upper_bound) in enumerate(normal_rank_tier_ranges):
+        for tier_number, (lower_bound, upper_bound) in enumerate(self._rank_tier_ranges):
             if lower_bound <= mmr <= upper_bound:
                 return tier_number
             elif last_upper_bound <= mmr <= lower_bound:
