@@ -25,6 +25,7 @@ rank_tier_map = {
 
 
 class ManifestLoader(object):
+    """Load data from manifest files."""
 
     def __init__(self):
         self.filepath_cache = {}
@@ -38,12 +39,19 @@ class ManifestLoader(object):
 
         return self.filepath_cache[manifest_path]
 
+    def get_raw_manifest_data_from_replay_filepath(self, replay_path):
+        actual_path = os.readlink(replay_path) if os.path.islink(replay_path) else replay_path
+        directory, filename = os.path.split(actual_path)
+        replay_id, _ = os.path.splitext(filename)
+        return self.get_raw_manifest_data(replay_id, os.path.join(directory, "manifest.json"))
+
+    def get_raw_manifest_data(self, replay_id, manifest_filepath):
+        data = self._get_filepath_data(manifest_filepath)
+        return data.get(replay_id)
+
     def lookup_labels_by_manifest_file(self, replay_id, replay_filepath):
         directory = os.path.dirname(replay_filepath)
         manifest_filepath = os.path.join(directory, "manifest.json")
-
-        data = self._get_filepath_data(manifest_filepath)
-        manifest_game = data[replay_id]
 
         return get_mmr_data_from_manifest_game(manifest_game), self._get_player_meta_dict(manifest_game)
 
@@ -52,6 +60,7 @@ class ManifestLoader(object):
         return dict((player["name"], player) for player in (
             manifest_game["orange"]["players"] + manifest_game["blue"]["players"]
         ))
+
 
 def get_mmr_data_from_manifest_game(manifest_game):
     """Get an mmr number from the rank/division for each player in a manifest game."""
@@ -75,6 +84,9 @@ def _rank_tier_and_division_to_mmr(rank_tier, division):
 def get_mmr_from_manifest_player(player):
     """Get the an mmr number from the rank and division in the provided player meta data."""
     try:
-        return _rank_tier_and_division_to_mmr(player["rank"]["tier"], player["rank"]["division"])
+        rank_info = player["rank"]
     except KeyError:
-        pass
+        return None
+    else:
+        return _rank_tier_and_division_to_mmr(rank_info["tier"], rank_info.get("division", 1))
+

@@ -42,7 +42,10 @@ class ParallelDownloaderConfig(abc.ABC):
 
     @abc.abstractmethod
     def get_filter_task(self, session, task_meta):
-        """Return a coroutine to filter the provided task."""
+        """Return a coroutine to filter the provided task. Returns a tuple of
+        (bool, task_meta), where the bool indicates whether or not the task
+        should be enqueued.
+        """
         pass
 
     def regular_callback(self, invocation):
@@ -76,7 +79,7 @@ class ParallelDownloader:
         loop = asyncio.get_running_loop()
         queue_fill_task = loop.create_task(self._keep_filter_queue_filled())
         await asyncio.wait([
-            self._update_progress()
+            asyncio.create_task(self._update_progress())
         ] + [
             asyncio.create_task(self._download_until_count_reached())
             for _ in range(self._config.download_task_count)
@@ -106,6 +109,7 @@ class ParallelDownloader:
             try:
                 await self._get_next_item_list_page()
             except Exception as e:
+                import ipdb; ipdb.set_trace()
                 print("Hit exception keeping queue filled {}".format(e))
                 raise e
 
@@ -167,11 +171,12 @@ class ParallelDownloader:
                 )
         async with self._next_request as response:
             self._next_request, tasks = \
-                await self._config.get_tasks_and_next_request_from_response(self._session, response)
+                await self._config.get_tasks_and_next_request_from_response(
+                    self._session, response
+                )
         self._config.progress_handler.item_list_updated(tasks, self)
         for task_meta in tasks:
             await self._filter_queue.put(task_meta)
-        # TODO: progress handler callback
 
     async def _update_progress(self):
         while self._number_of_items_left_to_download > 0:

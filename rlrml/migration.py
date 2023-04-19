@@ -6,7 +6,8 @@ import os
 import itertools
 
 from . import player_cache as pc, tracker_network
-from . import filters
+from . import mmr
+from . import util
 
 
 logger = logging.getLogger(__name__)
@@ -36,38 +37,24 @@ def get_manifest_files(filepath, manifest_filename="manifest.json"):
                 yield os.path.join(root, filename)
 
 
-async def populate_player_cache_from_directory_using_tracker_network(filepath, count=50):
-    """Populate the mmr cache for the provided directory using the tracker network."""
-    player_cache = pc.PlayerCache.new_with_cache_directory(filepath)
-    player_data_fetch = tracker_network.TrackerNetwork()
-
-    cached_get = pc.cached_get_from_tracker_network(player_cache, player_data_fetch)
-
-    player_metas = list(get_all_players_from_replay_directory(filepath))
-
-    semaphore = asyncio.Semaphore(2)
-
-    for player_meta in player_metas[:count]:
-        async with semaphore as _:
-            await cached_get(player_meta)
-
-
-async def copy_games_if_metadata_available_and_conditions_met(
+def copy_games_if_metadata_available_and_conditions_met(
         source_filepath, target_filepath
 ):
     """Copy games from the source_filepath to the target_filepath under appropriate conditions."""
-    player_cache = pc.PlayerCache.new_with_cache_directory(target_filepath)
-    player_data_fetch = tracker_network.TrackerNetwork()
-    checker = pc.CachedPlayerDataAvailabilityChecker(player_cache, player_data_fetch)
+
+    get_player_data = util.vpn_cycled_cached_player_get(target_filepath)
 
     included = 0
     excluded = 0
     missing_features = {}
+
     for game in get_all_games_from_replay_directory(source_filepath):
         game_id = game["id"]
         reason = None
-        player_datas = await checker.get_player_data(game)
-        for player_meta, player_data in player_datas:
+        all_players = itertools.chain(game["orange"]["players"], game["blue"]["players"])
+        for player_meta in all_players:
+            player_data = get_player_data(player_meta)
+
             if not isinstance(player_data, dict):
                 suffix = tracker_network.get_profile_suffix_for_player(player_meta)
                 missing_features[suffix] = missing_features.setdefault(suffix, 0) + 1
@@ -78,10 +65,10 @@ async def copy_games_if_metadata_available_and_conditions_met(
                 break
 
             try:
-                filters.get_player_mmr_for_game(
+                mmr.get_player_mmr_for_game(
                     player_data, game, days_after=0, days_before=10
                 )
-            except filters.MMRFilteringError as e:
+            except mmr.MMRFilteringError as e:
                 reason = f"MMR filtering {e} {player_meta}"
 
         if reason is None:
@@ -93,5 +80,22 @@ async def copy_games_if_metadata_available_and_conditions_met(
         logger.debug(f"included: {included}, excluded: {excluded}")
 
 
-async def retry_missing(filepath):
-    player_cache = pc.PlayerCache.new_with_cache_directory(filepath)
+class PlayerDataConcurrencyLimiter:
+    """Check that we have player mmr data for all players in the game."""
+
+    def __init__(self, get_player_data, max_concurrency=1):
+        """Initialize the availability checker."""
+        self._get_player_data = get_player_data
+        self._semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def get_player_data_for_game(self, game, **kwargs):
+        """Get player data for each player in the provided game."""
+        all_players = itertools.chain(game["orange"]["players"], game["blue"]["players"])
+
+        return await asyncio.gather(
+            *[self._get_one_player_data(player) for player in all_players]
+        )
+
+    async def _get_one_player_data(self, player, **kwargs):
+        async with self._semaphore as _:
+            return (player, await self._get_player_data(player, **kwargs))

@@ -1,37 +1,43 @@
 [tool.poetry]
-name = "rocket-league-mmr-prediction"
+name = "rlrml"
 version = "0.1.0"
 description = ""
 authors = ["Ivan Malison <IvanMalison@gmail.com>"]
-packages = [{include = "rocket_league_mmr_prediction"}]
+packages = [{include = "rlrml"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 torch = "^2.0.0"
 numpy = "^1.24.2"
-#carball-lite = { git = "https://github.com/CUBTeamRocket/carball-lite" }
+boxcars-py = { git = "https://github.com/CUBTeamRocket/boxcars-py" }
 aiofiles = "^23.1.0"
-nvidia-cuda-cupti-cu11 = "11.7.101"
 plyvel = "^1.5.0"
 backoff = "^2.2.1"
 aiocurl = "^0.0.3.post1"
 coloredlogs = "^15.0.1"
+sdbus-networkmanager = "^1.1.0"
 aiohttp = "^3.8.4"
 tqdm = "^4.65.0"
 matplotlib = "^3.7.1"
 tk = "^0.1.0"
+cloudscraper = "^1.2.69"
+flask = "^2.2.3"
+xdg-base-dirs = "^6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
 ipdb = "^0.13.13"
 
 [tool.poetry.scripts]
-convert_rl_replay = 'rocket_league_mmr_prediction.console:convert_replay'
-fill_cache_with_tracker_rank = 'rocket_league_mmr_prediction.console:fill_cache_with_tracker_rank'
-iter_cache = 'rocket_league_mmr_prediction.console:_iter_cache'
-copy_games = 'rocket_league_mmr_prediction.console:_copy_games'
-
-rlbc_download = 'rocket_league_mmr_prediction.download.console:run'
+load_game_dataset = 'rlrml.console:load_game_dataset'
+host_mmr_plots = 'rlrml.console:host_plots'
+rlbc_download = 'rlrml.download.console:run'
+get_player = 'rlrml.console:get_player'
+convert_game = 'rlrml.console:convert_game'
+proxy = 'rlrml.console:proxy'
+ballchasing_lookup = 'rlrml.console:ballchasing_lookup'
+get_cache_answer_uuids = 'rlrml.console:get_cache_answer_uuids'
+create_symlink_replay_directory = 'rlrml.console:create_symlink_replay_directory'
 
 [build-system]
 requires = ["poetry-core"]
