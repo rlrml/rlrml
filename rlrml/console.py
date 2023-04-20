@@ -251,8 +251,10 @@ def convert_game(filepath):
     _add_rlrml_args()
     import boxcars_py
     try:
-        meta, columns, tensor = boxcars_py.get_replay_meta_and_column_headers_and_numpy_ndarray(
-            filepath
+        meta, tensor = boxcars_py.get_ndarray_with_info_from_replay_filepath(
+            filepath,
+            global_feature_adders=["BallRigidBodyNoVelocities"],
+            fps=5,
         )
     except (Exception) as e:
         print(e)
@@ -268,8 +270,8 @@ def convert_game(filepath):
     with open("./saved_tensor.pt", 'rb') as f:
         tensor = torch.load(f)
     from . import _replay_meta
-    #import ipdb; ipdb.set_trace()
-    print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta))
+    import ipdb; ipdb.set_trace()
+    print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta']))
 
 
 @_RLRMLBuilder.with_default
