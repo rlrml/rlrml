@@ -7,7 +7,9 @@ import datetime
 import functools
 import logging
 import os
+import requests
 import sys
+import torch
 import json
 import xdg_base_dirs
 
@@ -23,7 +25,7 @@ from . import tracker_network
 from . import util
 from . import vpn
 from .assess import ReplaySetAssesor
-from .model import train
+from .model import train, build
 from .playlist import Playlist
 
 
@@ -95,6 +97,11 @@ def _add_rlrml_args(parser=None):
         action='store_true',
         default=False
     )
+    parser.add_argument(
+        '--model-path',
+        help="The path from which to load a model",
+        default=defaults.get('model-path')
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -111,6 +118,21 @@ def _setup_system_bus():
 class _RLRMLBuilder:
 
     @classmethod
+    def add_args(cls, *args):
+        def decorate(fn):
+            @functools.wraps(fn)
+            def wrapped():
+                parser = _add_rlrml_args()
+                for arg in args:
+                    parser.add_argument(arg)
+                parsed_args = parser.parse_args()
+                builder = cls(parsed_args)
+                cls._setup_default_logging()
+                return fn(builder)
+            return wrapped
+        return decorate
+
+    @classmethod
     def with_default(cls, fn):
         @functools.wraps(fn)
         def wrapped():
@@ -119,9 +141,13 @@ class _RLRMLBuilder:
         return wrapped
 
     @classmethod
-    def default(cls):
+    def _setup_default_logging(cls):
         coloredlogs.install(level='INFO', logger=logger)
         logger.setLevel(logging.INFO)
+
+    @classmethod
+    def default(cls):
+        cls._setup_default_logging()
         return cls(_add_rlrml_args().parse_args())
 
     def __init__(self, args):
@@ -207,11 +233,36 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def load_game_from_filepath(self):
-        def load_game_from_filepath(filepath):
+        def _load_game_from_filepath(filepath):
             return boxcars_py.get_ndarray_with_info_from_replay_filepath(
                 filepath, **self._args.bcf_args
             )
-        return self._args
+        return _load_game_from_filepath
+
+    @functools.cached_property
+    def saved_model(self):
+        # XXX: This is very WIP and may not work in some cases
+        tensor, _, = self.cached_directory_replay_set[0]
+        fake_headers = ["fake" for _ in tensor[0]]
+        model = build.ReplayModel(fake_headers, self.playlist.get_player_count())
+        state_dict = torch.load(self._args.model_path)
+        model.load_state_dict(state_dict)
+        return model
+
+    @functools.cached_property
+    def ballchasing_requests_session(self):
+        session = requests.Session()
+        session.headers.update(Authorization=self._args.ballchasing_token)
+        return session
+
+    def download_game_by_uuid(self, uuid):
+        response = self.ballchasing_requests_session.get(
+            f"https://ballchasing.com/api/replays/{uuid}/file",
+        )
+        target_file = os.path.join(self._args.replay_path, "temp", f"{uuid}.replay")
+        with open(target_file, 'wb') as f:
+            f.write(response.content)
+        return target_file
 
     def decorate(self, fn):
         @functools.wraps(fn)
@@ -338,6 +389,24 @@ def get_player():
 @_RLRMLBuilder.with_default
 def train_model(builder: _RLRMLBuilder):
     trainer = train.ReplayModelTrainer.from_dataset(builder.torch_dataset)
-    trainer.train(10)
+    trainer.train(10000)
     import ipdb; ipdb.set_trace()
     print("Hey")
+
+
+def download_game_by_uuid(uuid, target_path):
+    requests
+
+
+@_RLRMLBuilder.add_args("uuid")
+def apply_model(builder: _RLRMLBuilder):
+    uuid_to_path = dict(util.get_replay_uuids_in_directory(
+        builder._args.replay_path
+    ))
+    try:
+        filepath = uuid_to_path[builder._args.uuid]
+    except KeyError:
+        filepath = builder.download_game_by_uuid(builder._args.uuid)
+    _, ndarray = builder.load_game_from_filepath(filepath)
+    output = builder.saved_model(torch.stack([torch.tensor(ndarray)]))
+    print([load.horrible_hacky_undo_rescale(label) for label in output[0]])

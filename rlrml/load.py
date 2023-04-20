@@ -104,6 +104,7 @@ class CachedReplaySet(ReplaySet):
         tensor_present = os.path.exists(tensor_path)
         meta_present = os.path.exists(meta_path)
         if tensor_present and meta_present:
+            logger.debug(f"Cache hit for {uuid}")
             with open(tensor_path, 'rb') as f:
                 tensor = torch.load(f)
             with open(meta_path, 'rb') as f:
@@ -157,6 +158,9 @@ class CachedReplaySet(ReplaySet):
         """Defer to self._replay_set."""
         return getattr(self._replay_set, name)
 
+    def __getitem__(self, index):
+        return self._replay_set[index]
+
 
 class DirectoryReplaySet(ReplaySet):
     """A replay set that consists of replay files in a potentially nested directory."""
@@ -194,6 +198,9 @@ class DirectoryReplaySet(ReplaySet):
             ReplayMeta.from_boxcar_frames_meta(replay_meta['replay_meta']),
         )
 
+    def __getitem__(self, index):
+        return self.get_replay_tensor(self._replay_id_paths[index][0])
+
 
 class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
@@ -222,8 +229,10 @@ class ReplayDataset(Dataset):
             return self._label_cache[uuid]
         except KeyError:
             pass
+            # XXX: remove this other gross hack
+
         result = torch.FloatTensor([
-            self._lookup_label(player, meta.datetime)
+            horrible_hacky_rescale(self._lookup_label(player, meta.datetime))
             for player in meta.player_order
         ])
         if self._expected_label_count:
@@ -246,3 +255,11 @@ class ReplayDataset(Dataset):
         labels = self._get_replay_labels(uuid, meta)
 
         return replay_tensor, labels
+
+
+def horrible_hacky_rescale(label):
+    return (label - 900.0) / 200.0
+
+
+def horrible_hacky_undo_rescale(label):
+    return label * 200.0 + 900.0
