@@ -13,7 +13,7 @@ def log_epoch_start(_trainer, epoch):
 
 
 def log_batch_finish(_trainer, epoch, loss):
-    logger.info(f"Epoch finished with {loss}")
+    logger.info(f"Epoch finished with {loss:,}")
 
 
 class ReplayModelTrainer:
@@ -36,7 +36,7 @@ class ReplayModelTrainer:
         self._model = model.to(self._device)
         self._data_loader = data_loader
         self._loss_function = torch.nn.MSELoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters())
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=.001)
         self._on_epoch_start = on_epoch_start
         self._on_epoch_finish = log_batch_finish
 
@@ -51,10 +51,17 @@ class ReplayModelTrainer:
                 batch_iterator = iter(self._data_loader)
                 X, y = next(batch_iterator)
 
+            logger.info(f"Shapes X: {X.shape}, y: {y.shape}")
+
+            if X.shape[1] > 4000:
+                continue
+
             self._on_epoch_start(self, epoch)
             X, y = X.to(self._device), y.to(self._device)
             logger.info(f"Batch shape: {X.shape}")
             y_pred = self._model(X)
+            logger.info(f"y_pred: {y_pred[0]}")
+            logger.info(f"y: {y[0]}")
             loss = self._loss_function(y_pred, y)
             self._optimizer.zero_grad()
             loss.backward()

@@ -1,22 +1,50 @@
 import torch
 from torch import nn
 
-
+nn.Sequential()
 def build_default_model(
-        headers, label_count, kernel_size=10, stride=2,
-        dropout=.2, lstm_width=32
+        *args, **kwargs
 ):
-    input_width = len(headers)
-    model = nn.Sequential(
-        # nn.Conv1d(input_width, input_width, kernel_size, stride=stride),
-        # nn.BatchNorm1d(input_width),
-        # nn.MaxPool1d(kernel_size),
-        # nn.BatchNorm1d(input_width),
-        nn.LSTM(input_width, lstm_width, batch_first=True, dropout=.2, num_layers=3),
-        # nn.LSTM(lstm_width, lstm_width, batch_first=True, dropout=.2, num_layers=1),
-        nn.Linear(lstm_width, label_count)
-    )
-    return model
+    return ReplayModel(*args, **kwargs)
+
+
+class ReplayModel(nn.Module):
+
+    def __init__(
+            self, headers, label_count, kernel_size=10, stride=2,
+            dropout=.2, lstm_width=512
+    ):
+        super().__init__()
+        self._input_width = len(headers)
+        self._label_count = label_count
+        self._kernel_size = kernel_size
+        self._dropout = dropout
+        self._lstm_width = lstm_width
+
+        self._input_lstm = nn.LSTM(
+            self._input_width, self._lstm_width, batch_first=True, dropout=.12, num_layers=2
+        )
+        # self._middle_lstm = nn.LSTM(
+        #     self._lstm_width, self._lstm_width, batch_first=True, dropout=.12, num_layers=1
+        # )
+        # self._output_lstm = nn.LSTM(
+        #     self._lstm_width, self._label_count, batch_first=True, num_layers=1
+        # )
+
+        self._linear = nn.Linear(self._lstm_width, self._label_count)
+
+        self.add_module("input_lstm", self._input_lstm)
+        # self.add_module("middle_lstm", self._middle_lstm)
+        # self.add_module("output_lstm", self._output_lstm)
+        self.add_module("linear", self._linear)
+
+    def forward(self, X):
+        lstm_out, _ = self._input_lstm(X)
+        # second, _ = self._middle_lstm(first)
+        # third, (_hidden_1, _hidden_2) = self._output_lstm(first)
+        linear_out = self._linear(lstm_out[:, -1])
+
+        return linear_out
 
 
 def get_model_size(model):
@@ -28,7 +56,6 @@ def get_model_size(model):
         buffer_size += buffer.nelement() * buffer.element_size()
 
     size_all_mb = (param_size + buffer_size) / 1024**2
-    import ipdb; ipdb.set_trace()
     print('model size: {:.3f}MB'.format(size_all_mb))
 
 
