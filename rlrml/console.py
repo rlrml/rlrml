@@ -1,5 +1,6 @@
 """Defines command line entrypoints to the this library."""
 import argparse
+import boxcars_py
 import backoff
 import coloredlogs
 import datetime
@@ -53,6 +54,9 @@ def _add_rlrml_args(parser=None):
         "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
         "replay-path": os.path.join(rlrml_directory, "replay_path"),
         "playlist": Playlist("Ranked Doubles 2v2"),
+        "boxcar-frames-arguments": {
+            "fps": 10,
+        }
     }
     defaults.update(**config)
 
@@ -91,6 +95,7 @@ def _add_rlrml_args(parser=None):
         action='store_true',
         default=False
     )
+    parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
         default=defaults.get('ballchasing-token')
@@ -179,7 +184,8 @@ class _RLRMLBuilder:
     @functools.cached_property
     def cached_directory_replay_set(self):
         return load.DirectoryReplaySet.cached(
-            self._args.tensor_cache, self._args.replay_path
+            self._args.tensor_cache, self._args.replay_path,
+            boxcar_frames_arguments=self._args.bcf_args,
         )
 
     @functools.cached_property
@@ -198,6 +204,14 @@ class _RLRMLBuilder:
             self.cached_directory_replay_set, self.lookup_label,
             preload=self._args.preload, expected_label_count=self.playlist.get_player_count()
         )
+
+    @functools.cached_property
+    def load_game_from_filepath(self):
+        def load_game_from_filepath(filepath):
+            return boxcars_py.get_ndarray_with_info_from_replay_filepath(
+                filepath, **self._args.bcf_args
+            )
+        return self._args
 
     def decorate(self, fn):
         @functools.wraps(fn)
@@ -249,7 +263,6 @@ def create_symlink_replay_directory():
 @_call_with_sys_argv
 def convert_game(filepath):
     _add_rlrml_args()
-    import boxcars_py
     try:
         meta, tensor = boxcars_py.get_ndarray_with_info_from_replay_filepath(
             filepath,

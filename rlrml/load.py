@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 def get_meta_boxcars(_, filepath):
-    return ReplayMeta.from_boxcar_frames_meta(boxcars_py.get_replay_meta(filepath))
+    return ReplayMeta.from_boxcar_frames_meta(
+        boxcars_py.get_replay_meta(filepath)['Ok']['replay_meta']
+    )
 
 
 class ReplaySet(abc.ABC):
@@ -46,15 +48,41 @@ class CachedReplaySet(ReplaySet):
 
     def __init__(
             self, replay_set: ReplaySet, cache_directory: Path, cache_extension="pt",
-            backup_get_meta=get_meta_boxcars, **kwargs
+            backup_get_meta=get_meta_boxcars, ensure_bcf_arg_match=True, **kwargs
     ):
         """Initialize the cached replay set."""
         self._replay_set = replay_set
         self._cache_directory = cache_directory
         self._cache_extension = cache_extension
         self._backup_get_meta = backup_get_meta
+        self._boxcar_frames_arguments = kwargs.get("boxcar_frames_arguments", {})
         if not os.path.exists(self._cache_directory):
             os.makedirs(self._cache_directory)
+
+        if ensure_bcf_arg_match:
+            self._check_boxcar_frames_arguments_match()
+
+    @property
+    def _boxcar_frames_arguments_path(self):
+        return os.path.join(self._cache_directory, ".boxcars_frames_arguments")
+
+    def _check_boxcar_frames_arguments_match(self):
+        if len(os.listdir(self._cache_directory)) == 0:
+            with open(self._boxcar_frames_arguments_path, 'w') as f:
+                f.write(json.dumps(self._boxcar_frames_arguments))
+        elif os.path.exists(self._boxcar_frames_arguments_path):
+            with open(self._boxcar_frames_arguments_path, 'r') as f:
+                existing_arguments = json.loads(f.read())
+                if existing_arguments != self._boxcar_frames_arguments:
+                    raise Exception(
+                        f"Existing boxcar frames arguments {existing_arguments} "
+                        f"did not match current {self._boxcar_frames_arguments}."
+                    )
+        else:
+            logger.warn(
+                f"No record of boxcar_frames_arguments in cache_directory "
+                f"{self._cache_directory}"
+            )
 
     def get_replay_uuids(self):
         """Get the replay uuids that are a part of this dataset."""
@@ -133,11 +161,14 @@ class CachedReplaySet(ReplaySet):
 class DirectoryReplaySet(ReplaySet):
     """A replay set that consists of replay files in a potentially nested directory."""
 
-    def __init__(self, filepath, replay_extension="replay", backup_get_meta=get_meta_boxcars):
+    def __init__(
+            self, filepath, replay_extension="replay", boxcar_frames_arguments=None,
+    ):
         self._filepath = filepath
         self._replay_extension = replay_extension
         self._replay_id_paths = list(self._get_replay_ids())
         self._replay_path_dict = dict(self._replay_id_paths)
+        self._boxcar_frames_arguments = boxcar_frames_arguments or {}
 
     def _get_replay_ids(self):
         return util.get_replay_uuids_in_directory(
@@ -155,12 +186,12 @@ class DirectoryReplaySet(ReplaySet):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
         logger.info(f"Loading replay from {replay_path}")
-        replay_meta, _, np_array = boxcars_py.get_ndarray_with_info_from_replay_filepath(
-            replay_path
+        replay_meta, np_array = boxcars_py.get_ndarray_with_info_from_replay_filepath(
+            replay_path, **self._boxcar_frames_arguments
         )
         return (
             torch.as_tensor(np_array),
-            ReplayMeta.from_boxcar_frames_meta(replay_meta),
+            ReplayMeta.from_boxcar_frames_meta(replay_meta['replay_meta']),
         )
 
 
