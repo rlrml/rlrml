@@ -43,6 +43,11 @@ class ReplayModel(nn.Module):
 
         return linear_out
 
+    def prediction_history(self, X):
+        lstm_out, _ = self._input_lstm(X)
+
+        return [self._linear(lstm_out[:, i]) for i in range(lstm_out.shape[1])]
+
 
 def get_model_size(model):
     param_size = 0

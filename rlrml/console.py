@@ -103,6 +103,11 @@ def _add_rlrml_args(parser=None):
         help="The path from which to load a model",
         default=defaults.get('model-path')
     )
+    parser.add_argument(
+        '--lstm-width',
+        type=int,
+        default=512
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -255,16 +260,37 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def model(self):
-        model = build.ReplayModel(self.header_info, self.playlist)
+        model = build.ReplayModel(self.header_info, self.playlist, lstm_width=self._args.lstm_width)
         if self._args.model_path and os.path.exists(self._args.model_path):
             model.load_state_dict(torch.load(self._args.model_path))
+        model.to(self.device)
         return model
+
+    @functools.cached_property
+    def device(self):
+        return torch.device('cuda')
 
     @functools.cached_property
     def ballchasing_requests_session(self):
         session = requests.Session()
         session.headers.update(Authorization=self._args.ballchasing_token)
         return session
+
+    @functools.cached_property
+    def uuid_to_path(self):
+        return dict(util.get_replay_uuids_in_directory(
+            self._args.replay_path
+        ))
+
+    def get_game_filepath_by_uuid(self, uuid):
+        try:
+            filepath = self.uuid_to_path[uuid]
+        except KeyError:
+            filepath = self.download_game_by_uuid(uuid)
+            logger.info(f"Downloding game from ball chasing {filepath}")
+        else:
+            logger.info(f"Using found file at {filepath}")
+        return filepath
 
     def download_game_by_uuid(self, uuid):
         response = self.ballchasing_requests_session.get(
@@ -280,15 +306,6 @@ class _RLRMLBuilder:
         def wrapped():
             return fn(self)
         return wrapped
-
-
-def _call_with_sys_argv(function):
-    @functools.wraps(function)
-    def call_with_sys_argv():
-        coloredlogs.install(level='INFO', logger=logger)
-        logger.setLevel(logging.INFO)
-        function(*sys.argv[1:])
-    return call_with_sys_argv
 
 
 @_RLRMLBuilder.with_default
@@ -322,38 +339,11 @@ def create_symlink_replay_directory():
     )
 
 
-@_call_with_sys_argv
-def convert_game(filepath):
-    _add_rlrml_args()
-    try:
-        meta, tensor = boxcars_py.get_ndarray_with_info_from_replay_filepath(
-            filepath,
-            global_feature_adders=["BallRigidBodyNoVelocities"],
-            fps=5,
-        )
-    except (Exception) as e:
-        print(e)
-        import ipdb; ipdb.set_trace()
-        pass
-    import torch
-    logger.info("Making tensor")
-    tensor = torch.as_tensor(tensor)
-    logger.info("done making tensor")
-    with open("./saved_tensor.pt", 'wb') as f:
-        torch.save(tensor, f)
-
-    with open("./saved_tensor.pt", 'rb') as f:
-        tensor = torch.load(f)
-
-    import ipdb; ipdb.set_trace()
-    print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta']))
-
-
 @_RLRMLBuilder.with_default
 def host_plots(builder):
     """Run an http server that hosts plots of player mmr that in the cache."""
-    _http_graph_server.make_routes(builder.player_cache)
-    _http_graph_server.app.run(port=5001)
+    _http_graph_server.make_routes(builder)
+    _http_graph_server.app.run(host="0.0.0.0", port=5001)
 
 
 def proxy():
@@ -383,18 +373,17 @@ def ballchasing_lookup():
     mmr_data = manifest.get_mmr_data_from_manifest_game(game_data)
     print(json.dumps(mmr_data))
 
-
-def get_player():
+@_RLRMLBuilder.add_args("player_key")
+def get_player(builder: _RLRMLBuilder):
     """Get the provided player either from the cache or the tracker network."""
-    parser = _add_rlrml_args()
-    parser.add_argument('player_key')
-    args = parser.parse_args()
-    builder = _RLRMLBuilder(args)
 
+    player = {"__tracker_suffix__": builder._args.player_key}
     data = builder.player_cache.get_player_data(
-        {"__tracker_suffix__": args.player_key}
+        player
     )
     print(json.dumps(data))
+    import datetime
+    print(builder.lookup_label(player, datetime.date.today()))
 
 
 @_RLRMLBuilder.add_args('iterations')
@@ -416,21 +405,12 @@ def train_model(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.add_args("uuid")
 def apply_model(builder: _RLRMLBuilder):
-    uuid_to_path = dict(util.get_replay_uuids_in_directory(
-        builder._args.replay_path
-    ))
-    try:
-        filepath = uuid_to_path[builder._args.uuid]
-    except KeyError:
-        filepath = builder.download_game_by_uuid(builder._args.uuid)
-        logger.info(f"Downloding game from ball chasing {filepath}")
-    else:
-        logger.info(f"Using found file at {filepath}")
-    meta, ndarray = builder.load_game_from_filepath(filepath)
-    device = torch.device('cuda')
+    meta, ndarray = builder.load_game_from_filepath(
+        builder.get_game_filepath_by_uuid(builder._args.uuid)
+    )
     builder.model.eval()
-    builder.model.to(device)
-    x = torch.stack([torch.tensor(ndarray)]).to(device)
+    builder.model.to(builder.device)
+    x = torch.stack([torch.tensor(ndarray)]).to(builder.device)
     output = builder.model(x)
     print("Predictions: ")
     print([builder.label_scaler.unscale(float(label)) for label in output[0]])
@@ -448,3 +428,10 @@ def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
     loss = trainer.get_total_loss()
     print(loss)
     import ipdb; ipdb.set_trace()
+
+
+@_RLRMLBuilder.add_args("tracker_suffix", "mmr")
+def manual_override(builder: _RLRMLBuilder):
+    builder.player_cache.insert_manual_override(
+        {"__tracker_suffix__": builder._args.tracker_suffix}, builder._args.mmr
+    )

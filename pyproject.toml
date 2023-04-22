@@ -32,7 +32,7 @@ ipdb = "^0.13.13"
 
 [tool.poetry.scripts]
 load_game_dataset = 'rlrml.console:load_game_dataset'
-host_mmr_plots = 'rlrml.console:host_plots'
+host_plots = 'rlrml.console:host_plots'
 rlbc_download = 'rlrml.download.console:run'
 get_player = 'rlrml.console:get_player'
 convert_game = 'rlrml.console:convert_game'
@@ -43,6 +43,7 @@ create_symlink_replay_directory = 'rlrml.console:create_symlink_replay_directory
 train_model = 'rlrml.console:train_model'
 apply_model = 'rlrml.console:apply_model'
 calculate_loss = 'rlrml.console:calculate_mean_absolute_loss'
+manual_override = 'rlrml.console:manual_override'
 
 [build-system]
 requires = ["poetry-core"]

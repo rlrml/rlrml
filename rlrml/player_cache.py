@@ -44,6 +44,7 @@ class PlayerCache:
     """Encapsulates the player cache."""
 
     error_key = "__error__"
+    manual_override_key = "__manual_override__"
 
     def __init__(self, filepath, key_fn=_use_tracker_url_suffix_as_key):
         """Initialize the metadata cache from a replay directory."""
@@ -66,6 +67,9 @@ class PlayerCache:
         if key is None:
             return None
         return self._get_data_from_key(key)
+
+    def insert_manual_override(self, player: PlatformPlayer, mmr):
+        self.insert_data_for_player(player, {self.manual_override_key: mmr})
 
     def insert_data_for_player(self, player, data):
         """Insert the provided data for given player."""

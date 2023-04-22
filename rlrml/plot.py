@@ -81,7 +81,7 @@ def make_calc_plot(calc):
     return plot_calc_for_season
 
 
-class PlotGenerator:
+class MMRHistoryPlotGenerator:
     """Generate MMR plots from tracker network data."""
 
     @classmethod
@@ -168,4 +168,26 @@ class PlotGenerator:
         self._plot_season_lines()
         self._plot_mmr()
         self._finalize()
+        return self._figure
+
+
+class GameMMRPredictionPlotGenerator:
+    def __init__(
+            self, prediction_history, players_with_mmr, figure=None,
+            player_colors=('orange', 'blue')
+    ):
+        self._figure = figure or Figure(figsize=(10, 6), dpi=200)
+        self._prediction_history = np.array(prediction_history)
+        self._players_with_mmr = players_with_mmr
+        self._plt = self._figure.subplots()
+        self._player_colors = player_colors
+
+    def generate(self):
+        for index, (player_color, (player, player_mmr)) in enumerate(zip(
+                itertools.cycle(self._player_colors),
+                self._players_with_mmr
+        )):
+            self._plt.plot(self._prediction_history[:, index], color=player_color)
+            self._plt.hlines(player_mmr, 0, len(self._prediction_history), color=player_color)
+            self._figure.tight_layout()
         return self._figure

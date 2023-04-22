@@ -1,7 +1,8 @@
 import base64
 import logging
-from io import BytesIO
+import torch
 
+from io import BytesIO
 from flask import Flask, request, redirect
 from markupsafe import escape
 from matplotlib.figure import Figure
@@ -10,6 +11,7 @@ from . import mmr
 from . import player_cache as pc
 from . import plot
 from .tracker_network import CloudScraperTrackerNetwork
+from . import _replay_meta
 
 
 app = Flask(__name__)
@@ -23,8 +25,33 @@ def _img_from_fig(fig: Figure):
     return f"<img src='data:image/png;base64,{data}'/>"
 
 
-def make_routes(cache):
+def make_routes(builder):
     """Build the routes to serve mmr graphs with the provided cache filepath."""
+    cache = builder.player_cache
+
+    @app.route("/predict/<uuid>")
+    def prediction_graph(uuid):
+        meta, ndarray = builder.load_game_from_filepath(
+            builder.get_game_filepath_by_uuid(uuid)
+        )
+        builder.model.eval()
+        x = torch.stack([torch.tensor(ndarray)]).to(builder.device)
+        history = builder.model.prediction_history(x)
+        python_history = [
+            [builder.label_scaler.unscale(float(prediction)) for prediction in elem[0]]
+            for elem in history
+        ]
+        meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+        figure = plot.GameMMRPredictionPlotGenerator(
+            python_history,
+            [
+                (player, builder.lookup_label(player, meta.datetime.date()))
+                for player in meta.player_order
+            ]
+        ).generate()
+        elements = []
+        elements.append(f"<div>{_img_from_fig(figure)}</div>")
+        return "\n<br><br>".join(elements)
 
     @app.route("/at/<platform>/<player_name>")
     def starting_at(platform, player_name):
@@ -64,7 +91,7 @@ def make_routes(cache):
             except KeyError:
                 continue
             else:
-                fig = plot.PlotGenerator(
+                fig = plot.MMRHistoryPlotGenerator(
                     mmr_by_season, additional_plotters=(
                         # plot.make_plot_poly_fit(2),
                         plot.make_calc_plot(calc),

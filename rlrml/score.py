@@ -4,6 +4,7 @@ import itertools
 import logging
 import numpy as np
 
+from . import player_cache as pc
 from . import _replay_meta
 from . import mmr
 from . import util
@@ -56,6 +57,9 @@ class MMREstimateScorer:
             playlist=Playlist('Ranked Doubles 2v2')
     ):
         player_data = self._get_player_data(player)
+
+        if pc.PlayerCache.manual_override_key in player_data:
+            return float(player_data[pc.PlayerCache.manual_override_key]), 1.0
 
         if player_data is None or '__error__' in player_data:
             return 0, 0.0
