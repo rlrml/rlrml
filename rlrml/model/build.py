@@ -1,22 +1,18 @@
 import torch
 from torch import nn
 
-nn.Sequential()
-def build_default_model(
-        *args, **kwargs
-):
-    return ReplayModel(*args, **kwargs)
+from ..playlist import Playlist
+from .. import util
 
 
 class ReplayModel(nn.Module):
-
     def __init__(
-            self, headers, label_count, kernel_size=10, stride=2,
+            self, header_info, playlist: Playlist, kernel_size=10, stride=2,
             dropout=.2, lstm_width=512
     ):
         super().__init__()
-        self._input_width = len(headers)
-        self._label_count = label_count
+        self._input_width = util.feature_count_for(playlist, header_info)
+        self._label_count = playlist.player_count
         self._kernel_size = kernel_size
         self._dropout = dropout
         self._lstm_width = lstm_width
@@ -24,6 +20,7 @@ class ReplayModel(nn.Module):
         self._input_lstm = nn.LSTM(
             self._input_width, self._lstm_width, batch_first=True, dropout=.12, num_layers=2
         )
+
         # self._middle_lstm = nn.LSTM(
         #     self._lstm_width, self._lstm_width, batch_first=True, dropout=.12, num_layers=1
         # )

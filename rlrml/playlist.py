@@ -13,7 +13,8 @@ class Playlist(enum.StrEnum):
         except Exception:
             return cls(number_or_string)
 
-    def get_player_count(self):
+    @property
+    def player_count(self):
         return playlist_to_player_count[self]
 
 

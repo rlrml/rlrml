@@ -72,6 +72,12 @@ class Rank(enum.StrEnum):
     GRAND_CHAMPION = "Grand Champion"
     SUPERSONIC_LEGEND = "Supersonic Legend"
 
+    def to_ballchasing(self, with_tier=None):
+        rank_string = self.lower().replace(' ', '-')
+        if with_tier is not None:
+            rank_string = f"{rank_string}-{with_tier}"
+        return rank_string
+
 
 rank_number_to_name = dict(enumerate(list(Rank)))
 
@@ -283,7 +289,7 @@ def _calculate_basic_season_statistics(
     try:
         poly = np.polynomial.Polynomial.fit(day_deltas, mmrs, 3)
     except np.linalg.LinAlgError as e:
-        logger.info(f"calculate stats fitting error {e}")
+        logger.warn(f"Calculate stats fitting error {e}")
     else:
         roots = poly.deriv().roots()
         relevant_roots = [
@@ -306,14 +312,14 @@ def _calculate_basic_season_statistics(
         values['decreasing'] = bool(minimizer == day_deltas[-1] and maximizer == day_deltas[0])
         raw_allowance = approx_increasing_allowance * values['poly_increase']
         values['~increasing'] = bool(
-            (values['poly_max'] - raw_allowance) <= values['poly_finish'] and
-            (values['poly_min'] + raw_allowance) >= values['poly_start']
+            (values['poly_max'] - raw_allowance) <= values['poly_finish'] and (
+                (values['poly_min'] + raw_allowance) >= values['poly_start']
+            )
         )
         values['poly_maximizer'] = maximizer
         values['poly_minimizer'] = minimizer
         if keep_poly:
             values['poly'] = poly
-
 
     return values
 
@@ -422,8 +428,9 @@ class SeasonBasedPolyFitMMRCalculator:
             previous_poly_max = previous_global_poly_max
 
         relevant_poly_max = min(previous_poly_max, season_poly_max)
+        approximately_increasing = game_season_stats.get('~increasing', False)
 
-        if game_season_stats["~increasing"]:
+        if approximately_increasing:
             estimate = max(relevant_poly_max, poly_estimate)
         elif season_poly_max - season_poly_min < self._min_max_proximity_threshold:
             contributors = [season_poly_max, season_poly_min]
@@ -434,13 +441,17 @@ class SeasonBasedPolyFitMMRCalculator:
             estimate = poly_estimate
 
         max_difference = self._dynamic_max_poly_max_gap(previous_poly_max)
+        has_enough_datapoints = game_season_stats['point_count'] >= self._season_dp_threshold
 
-        if (
-                last_season_stats.get('~increasing', False) and
-                last_season_stats['point_count'] >= self._season_dp_threshold and
-                last_season_stats['poly_finish'] > estimate
+        last_season_end = last_season_stats.get(
+            'poly_finish', last_season_stats.get('end', 0)
+        )
+        finished_prev_season_above_estimate = last_season_end > estimate
+
+        if approximately_increasing and (
+                has_enough_datapoints and finished_prev_season_above_estimate
         ):
-            estimate = min(last_season_stats['poly_finish'], game_season_stats['max'])
+            estimate = min(last_season_end, game_season_stats['max'])
 
         if previous_poly_max - estimate > max_difference:
             estimate = previous_poly_max - max_difference

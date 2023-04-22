@@ -206,39 +206,44 @@ class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
     def __init__(
-            self, replay_set: ReplaySet, lookup_label, expected_label_count,
+            self, replay_set: ReplaySet, lookup_label, playlist,
+            header_info, label_scaler=util.HorribleHackScaler,
             preload=False,
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set
         self._replay_ids = list(replay_set.get_replay_uuids())
-        self._expected_label_count = expected_label_count
+        self._playlist = playlist
+        self._header_info = header_info
         self._lookup_label = lookup_label
         self._label_cache = {}
+        self._label_scaler = label_scaler
         if preload:
             for i in range(len(self._replay_ids)):
                 self[i]
 
-    def get_shape_info(self):
-        tensor, _ = self[0]
-        # TODO: real headers here
-        return ["fake" for _ in tensor[0]], self._expected_label_count
+    @property
+    def features_per_frame(self):
+        return util.feature_count_for(self._playlist, self._header_info)
+
+    @property
+    def label_count(self):
+        return self._playlist.player_count
 
     def _get_replay_labels(self, uuid, meta):
         try:
             return self._label_cache[uuid]
         except KeyError:
             pass
-            # XXX: remove this other gross hack
 
         result = torch.FloatTensor([
-            horrible_hacky_rescale(self._lookup_label(player, meta.datetime))
+            self._label_scaler.scale(self._lookup_label(player, meta.datetime))
             for player in meta.player_order
         ])
-        if self._expected_label_count:
-            assert len(result) == self._expected_label_count
-        if any(r == 0.0 for r in result):
-            raise Exception()
+
+        if len(result) != self.label_count:
+            raise Exception(f"Expected {self.label_count}, got {len(result)}")
+
         self._label_cache[uuid] = result
         return result
 
@@ -255,11 +260,3 @@ class ReplayDataset(Dataset):
         labels = self._get_replay_labels(uuid, meta)
 
         return replay_tensor, labels
-
-
-def horrible_hacky_rescale(label):
-    return (label - 900.0) / 200.0
-
-
-def horrible_hacky_undo_rescale(label):
-    return label * 200.0 + 900.0

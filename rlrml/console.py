@@ -24,6 +24,7 @@ from . import player_cache as pc
 from . import tracker_network
 from . import util
 from . import vpn
+from . import _replay_meta
 from .assess import ReplaySetAssesor
 from .model import train, build
 from .playlist import Playlist
@@ -152,6 +153,11 @@ class _RLRMLBuilder:
 
     def __init__(self, args):
         self._args = args
+        logger.info(f"Runnign with {self._args}")
+
+    @functools.cached_property
+    def label_scaler(self):
+        return util.HorribleHackScaler
 
     @functools.cached_property
     def vpn_cycle_status_codes(self):
@@ -228,8 +234,16 @@ class _RLRMLBuilder:
     def torch_dataset(self):
         return load.ReplayDataset(
             self.cached_directory_replay_set, self.lookup_label,
-            preload=self._args.preload, expected_label_count=self.playlist.get_player_count()
+            self.playlist, self.header_info, preload=self._args.preload,
+            label_scaler=self.label_scaler
         )
+
+    @functools.cached_property
+    def header_info(self):
+        headers_args = dict(self._args.bcf_args)
+        if 'fps' in headers_args:
+            del headers_args['fps']
+        return boxcars_py.get_column_headers(**headers_args)
 
     @functools.cached_property
     def load_game_from_filepath(self):
@@ -240,13 +254,10 @@ class _RLRMLBuilder:
         return _load_game_from_filepath
 
     @functools.cached_property
-    def saved_model(self):
-        # XXX: This is very WIP and may not work in some cases
-        tensor, _, = self.cached_directory_replay_set[0]
-        fake_headers = ["fake" for _ in tensor[0]]
-        model = build.ReplayModel(fake_headers, self.playlist.get_player_count())
-        state_dict = torch.load(self._args.model_path)
-        model.load_state_dict(state_dict)
+    def model(self):
+        model = build.ReplayModel(self.header_info, self.playlist)
+        if self._args.model_path and os.path.exists(self._args.model_path):
+            model.load_state_dict(torch.load(self._args.model_path))
         return model
 
     @functools.cached_property
@@ -333,7 +344,7 @@ def convert_game(filepath):
 
     with open("./saved_tensor.pt", 'rb') as f:
         tensor = torch.load(f)
-    from . import _replay_meta
+
     import ipdb; ipdb.set_trace()
     print(_replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta']))
 
@@ -386,16 +397,21 @@ def get_player():
     print(json.dumps(data))
 
 
-@_RLRMLBuilder.with_default
+@_RLRMLBuilder.add_args('iterations')
 def train_model(builder: _RLRMLBuilder):
-    trainer = train.ReplayModelTrainer.from_dataset(builder.torch_dataset)
-    trainer.train(10000)
+    import rich.live
+    from .model import display
+
+    def do_train(*args, **kwargs):
+        with rich.live.Live() as live:
+            live_stats = display.TrainLiveStatsDisplay(live, scaler=builder.label_scaler)
+            trainer = train.ReplayModelManager.from_dataset(
+                builder.torch_dataset, model=builder.model,
+                on_epoch_finish=live_stats.on_epoch_finish,
+            )
+            trainer.train(*args, **kwargs)
+    do_train(int(builder._args.iterations))
     import ipdb; ipdb.set_trace()
-    print("Hey")
-
-
-def download_game_by_uuid(uuid, target_path):
-    requests
 
 
 @_RLRMLBuilder.add_args("uuid")
@@ -407,6 +423,28 @@ def apply_model(builder: _RLRMLBuilder):
         filepath = uuid_to_path[builder._args.uuid]
     except KeyError:
         filepath = builder.download_game_by_uuid(builder._args.uuid)
-    _, ndarray = builder.load_game_from_filepath(filepath)
-    output = builder.saved_model(torch.stack([torch.tensor(ndarray)]))
-    print([load.horrible_hacky_undo_rescale(label) for label in output[0]])
+        logger.info(f"Downloding game from ball chasing {filepath}")
+    else:
+        logger.info(f"Using found file at {filepath}")
+    meta, ndarray = builder.load_game_from_filepath(filepath)
+    device = torch.device('cuda')
+    builder.model.eval()
+    builder.model.to(device)
+    x = torch.stack([torch.tensor(ndarray)]).to(device)
+    output = builder.model(x)
+    print("Predictions: ")
+    print([builder.label_scaler.unscale(float(label)) for label in output[0]])
+    meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+    print("Actual: ")
+    print([builder.lookup_label(player, meta.datetime.date()) for player in meta.player_order])
+
+
+@_RLRMLBuilder.with_default
+def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
+    builder.model.eval()
+    trainer = train.ReplayModelManager.from_dataset(
+        builder.torch_dataset, model=builder.model, loss_function=torch.nn.L1Loss()
+    )
+    loss = trainer.get_total_loss()
+    print(loss)
+    import ipdb; ipdb.set_trace()
