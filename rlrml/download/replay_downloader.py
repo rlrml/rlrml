@@ -29,6 +29,7 @@ async def require_at_least_one_non_null_mmr(_, replay_meta):
     try:
         mmr_estimates = manifest.get_mmr_data_from_manifest_game(replay_meta)
     except Exception:
+        logger.warn("Exception getting mmr_estimate")
         return False, replay_meta
     return any(
         value is not None
@@ -49,6 +50,18 @@ def compose_filters(*filters):
         for next_filter in filters:
             should_enqueue, replay_meta = await next_filter(session, replay_meta)
             if not should_enqueue:
+                break
+        return should_enqueue, replay_meta
+    return new_filter
+
+
+def compose_filters_with_reasons(*filters):
+    """Compose the provided filters."""
+    async def new_filter(session, replay_meta):
+        for (reason, next_filter) in filters:
+            should_enqueue, replay_meta = await next_filter(session, replay_meta)
+            if not should_enqueue:
+                logger.warn(f"{replay_meta['id']} filtered because {reason}")
                 break
         return should_enqueue, replay_meta
     return new_filter
