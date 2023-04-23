@@ -44,6 +44,7 @@ train_model = 'rlrml.console:train_model'
 apply_model = 'rlrml.console:apply_model'
 calculate_loss = 'rlrml.console:calculate_mean_absolute_loss'
 manual_override = 'rlrml.console:manual_override'
+delete_if_less_than = 'rlrml.console:delete_if_less_than'
 
 [build-system]
 requires = ["poetry-core"]

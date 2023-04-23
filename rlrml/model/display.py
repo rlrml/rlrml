@@ -22,13 +22,15 @@ class TrainLiveStatsDisplay:
 
         last_one_hundred = self._losses[-100:]
         last = self._losses[-self._last_n:]
+        last_mean = np.mean(last)
         penultimate = self._losses[-2 * self._last_n: -self._last_n]
         table.add_row(
-            f"{epoch}", f"{self._losses[-1]}",
-            f"{np.mean(last)}",
-            f"{np.mean(penultimate)}",
-            f"{np.mean(penultimate) - np.mean(last)}"
-            f"{np.mean(self._losses[-100:])}",
+            f"{epoch:.5f}",
+            f"{self._losses[-1]:.5f}",
+            f"{last_mean:.5f}",
+            f"{np.mean(penultimate):.5f}",
+            f"{np.mean(penultimate) - last_mean:.5f}"
+            f"{np.mean(last_one_hundred):.5f}",
         )
         return table
 

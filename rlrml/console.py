@@ -259,8 +259,18 @@ class _RLRMLBuilder:
         return _load_game_from_filepath
 
     @functools.cached_property
+    def loss_function(self):
+        scale_target = 250
+        scale_weight = 3.0
+        scale_target = self.label_scaler.scale_no_translate(scale_target)
+        weight_function = train.create_weight_function(scale_target, scale_weight)
+        return train.WeightedByMSELoss(weight_by=weight_function)
+
+    @functools.cached_property
     def model(self):
-        model = build.ReplayModel(self.header_info, self.playlist, lstm_width=self._args.lstm_width)
+        model = build.ReplayModel(
+            self.header_info, self.playlist, lstm_width=self._args.lstm_width,
+        )
         if self._args.model_path and os.path.exists(self._args.model_path):
             model.load_state_dict(torch.load(self._args.model_path))
         model.to(self.device)
@@ -397,6 +407,7 @@ def train_model(builder: _RLRMLBuilder):
             trainer = train.ReplayModelManager.from_dataset(
                 builder.torch_dataset, model=builder.model,
                 on_epoch_finish=live_stats.on_epoch_finish,
+                loss_function=builder.loss_function
             )
             trainer.train(*args, **kwargs)
     do_train(int(builder._args.iterations))
@@ -422,11 +433,29 @@ def apply_model(builder: _RLRMLBuilder):
 @_RLRMLBuilder.with_default
 def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
     builder.model.eval()
-    trainer = train.ReplayModelManager.from_dataset(
-        builder.torch_dataset, model=builder.model, loss_function=torch.nn.L1Loss()
-    )
-    loss = trainer.get_total_loss()
-    print(loss)
+    results = []
+    for uuid, tensor, labels in builder.torch_dataset.iter_with_uuid():
+        tensor = tensor.to(builder.device)
+        labels = torch.stack([labels]).to(builder.device)
+        predicted = builder.model(torch.stack([tensor]))
+        values = (
+            uuid,
+            [float(f) for f in predicted[0]],
+            [float(f) for f in labels[0]],
+            float(torch.nn.functional.l1_loss(predicted, labels))
+        )
+        print(values)
+        results.append(values)
+
+    def get_l1_loss(values):
+        _, predicted, labels, loss = values
+        return loss
+
+    results.sort(key=get_l1_loss, reverse=True)
+    import ipdb; ipdb.set_trace()
+    with open('./loss.json', 'w') as f:
+        f.write(json.dumps(results))
+
     import ipdb; ipdb.set_trace()
 
 
@@ -435,3 +464,30 @@ def manual_override(builder: _RLRMLBuilder):
     builder.player_cache.insert_manual_override(
         {"__tracker_suffix__": builder._args.tracker_suffix}, builder._args.mmr
     )
+
+
+@_RLRMLBuilder.with_default
+def delete_if_less_than(builder:  _RLRMLBuilder):
+    deleted = 0
+    fine = 0
+    for uuid, tensor, labels in builder.torch_dataset.iter_with_uuid():
+        game_length = tensor.shape[0]
+        if game_length < 1500:
+            path = builder.cached_directory_replay_set.replay_path(uuid)
+            deleted += 1
+            os.remove(path)
+        else:
+            fine += 1
+
+    logger.info(f"fine: {fine}, deleted: {deleted}")
+
+
+def create_sub_segments(iterable, segment_size):
+    if segment_size < 1:
+        raise ValueError("Segment size should be at least 1.")
+
+    sub_segments = []
+    for i in range(0, len(iterable), segment_size):
+        sub_segments.append(iterable[i:i + segment_size])
+
+    return sub_segments

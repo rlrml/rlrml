@@ -253,10 +253,17 @@ class ReplayDataset(Dataset):
 
     def __getitem__(self, index):
         """Get the replay at the provided index."""
+        return self.get_with_uuid(index)[1:]
+
+    def get_with_uuid(self, index):
         if index < 0 or index > len(self._replay_ids):
             raise KeyError
         uuid = self._replay_ids[index]
         replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
         labels = self._get_replay_labels(uuid, meta)
 
-        return replay_tensor, labels
+        return uuid, replay_tensor, labels
+
+    def iter_with_uuid(self):
+        for i in range(len(self._replay_ids)):
+            yield self.get_with_uuid(i)

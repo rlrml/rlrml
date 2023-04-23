@@ -77,8 +77,12 @@ def feature_count_for(playlist, header_info):
 class HorribleHackScaler:
 
     @classmethod
+    def scale_no_translate(cls, value):
+        return value / 200.0
+
+    @classmethod
     def scale(cls, label):
-        return (label - 900.0) / 200.0
+        return cls.scale_no_translate(label - 900.0)
 
     @classmethod
     def unscale(cls, label):
