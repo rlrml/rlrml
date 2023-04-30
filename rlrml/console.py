@@ -252,11 +252,57 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def load_game_from_filepath(self):
-        def _load_game_from_filepath(filepath):
+        def _load_game_from_filepath(filepath, **kwargs):
+            call_kwargs = dict(self._args.bcf_args)
+            call_kwargs.update(kwargs)
             return boxcars_py.get_ndarray_with_info_from_replay_filepath(
-                filepath, **self._args.bcf_args
+                filepath, **call_kwargs
             )
         return _load_game_from_filepath
+
+    # do json stuff
+    def game_to_dictionary(self, filepath, **kwargs):
+        meta, data = self.load_game_from_filepath(filepath, **kwargs)
+        column_headers = meta['column_headers']
+        meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+        all_headers = list(column_headers['global_headers'])
+        for index, player in enumerate(meta.player_order):
+            for player_header in column_headers['player_headers']:
+                #all_headers.append(f"player {index}({player.tracker_suffix}) - {player_header}")
+                all_headers.append(f"player {index} - {player_header}")
+        assert len(all_headers) == data.shape[1]
+        #print(all_headers)
+        return dict(zip(all_headers, [list(map(float, data[:,column])) for column in range(data.shape[1])]))
+
+    def game_to_json(self, filepath, **kwargs):
+        dictionary = self.game_to_dictionary(filepath, **kwargs)
+        p1list, p2list = self.mmr_plot_to_json(filepath)
+        #print(len(p1list))
+        #print(len(p2list))
+        #print(p1list[:5])
+        #print(p2list[:5])
+        dictionary['player 1 - mmr'] = p1list
+        dictionary['player 2 - mmr'] = p2list
+        return json.dumps(dictionary)
+
+    def write_game_json_to_file(self, src_filepath, dest_filepath, **kwargs):
+        with open(dest_filepath, "w") as f:
+            f.write(self.game_to_json(src_filepath, **kwargs))
+
+    def mmr_plot_to_json(self, src_filepath):
+        meta, ndarray = self.load_game_from_filepath(src_filepath)
+        self.model.eval()
+        self.model.to(self.device)
+        x = torch.stack([torch.tensor(ndarray)]).to(self.device)
+        history = self.model.prediction_history(x)
+        python_history = [
+            [self.label_scaler.unscale(float(prediction)) for prediction in elem[0]]
+            for elem in history
+        ]
+        p1list = [mmr[0] for mmr in python_history]
+        p2list = [mmr[1] for mmr in python_history]
+        #print(python_history[0])
+        return p1list, p2list
 
     @functools.cached_property
     def loss_function(self):
@@ -272,13 +318,13 @@ class _RLRMLBuilder:
             self.header_info, self.playlist, lstm_width=self._args.lstm_width,
         )
         if self._args.model_path and os.path.exists(self._args.model_path):
-            model.load_state_dict(torch.load(self._args.model_path))
+            model.load_state_dict(torch.load(self._args.model_path, map_location=self.device))
         model.to(self.device)
         return model
 
     @functools.cached_property
     def device(self):
-        return torch.device('cuda')
+        return torch.device('cpu')
 
     @functools.cached_property
     def ballchasing_requests_session(self):
@@ -481,13 +527,7 @@ def delete_if_less_than(builder:  _RLRMLBuilder):
 
     logger.info(f"fine: {fine}, deleted: {deleted}")
 
-
-def create_sub_segments(iterable, segment_size):
-    if segment_size < 1:
-        raise ValueError("Segment size should be at least 1.")
-
-    sub_segments = []
-    for i in range(0, len(iterable), segment_size):
-        sub_segments.append(iterable[i:i + segment_size])
-
-    return sub_segments
+@_RLRMLBuilder.add_args("src_filepath", "dest_filepath")
+def game_to_json(builder: _RLRMLBuilder):
+    builder.write_game_json_to_file(builder._args.src_filepath, builder._args.dest_filepath, fps=30, global_feature_adders = [ "BallRigidBodyNoVelocities", "SecondsRemaining" ])
+    #builder.mmr_plot_to_json(builder._args.src_filepath, builder._args.dest_filepath);
