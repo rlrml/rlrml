@@ -7,6 +7,7 @@ import tqdm
 import logging
 
 from . import replay_downloader
+from . import filters
 from .progress import BarProgressHandler
 
 from ..score import MMREstimateScorer
@@ -16,6 +17,9 @@ from .. import player_cache as pc
 from .. import tracker_network
 from .. import util
 from .. import _replay_meta
+
+
+logger = logging.getLogger(__name__)
 
 
 def run():
@@ -45,63 +49,67 @@ def run():
         '--all-replays-dir', type=str,
         help="The directory to use for replay filtering", default=None
     )
+    parser.add_argument(
+        '--minimum-replay-score', type=float, default=0.001
+    )
+    parser.add_argument(
+        '--min-mmr-disparity', type=int, default=None,
+    )
+    parser.add_argument(
+        '--min-duration', type=int, default=150
+    )
     args = parser.parse_args()
+    builder = console._RLRMLBuilder(args)
+    builder._setup_default_logging()
+
     all_replays_dir = args.all_replays_dir or args.path
 
     existing_replay_uuids = set(
         uuid for uuid, _ in util.get_replay_uuids_in_directory(all_replays_dir)
     )
 
-    player_cache = pc.PlayerCache(str(args.player_cache))
-
     def replay_exists(uuid):
         return uuid in existing_replay_uuids
 
-    async def check_for_cached_error(_, replay_meta):
-        try:
-            meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
-            for player in meta.player_order:
-                if player_cache.has_error(player):
-                    replay_downloader.logger.warn(
-                        f"Filtering due to error player {player.tracker_suffix}"
-                    )
-                    return False, replay_meta
-            return True, replay_meta
-        except Exception as e:
-            import ipdb; ipdb.set_trace()
-            print(f"filtering error {e}")
-            return True, replay_meta
+    def filter_by_replay_score(replay_meta):
+        meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
+        score_info = builder.player_mmr_estimate_scorer.score_replay_meta(meta)
+
+        additional_condition = True
+        if args.min_mmr_disparity is not None:
+            player_mmrs = [mmr for _, mmr in score_info.estimates]
+            max_mmr = max(player_mmrs)
+            min_mmr = min(player_mmrs)
+            additional_condition = max_mmr - min_mmr >= args.min_mmr_disparity
+            logger.info(f"{max_mmr}, {min_mmr}, {additional_condition}")
+
+        return (
+            additional_condition and score_info.meta_score >= args.minimum_replay_score,
+            replay_meta
+        )
+
+    async def async_filter_by_replay_score(_, replay_meta):
+        return filter_by_replay_score(replay_meta)
+
+    def filter_by_duration(replay_meta):
+        return replay_meta['duration'] > args.min_duration, replay_meta
+
+    async def async_filter_by_duration(_, replay_meta):
+        return filter_by_duration(replay_meta)
 
     task_filter = replay_downloader.compose_filters(
         replay_downloader.require_at_least_one_non_null_mmr,
         replay_downloader.build_filter_existing(replay_exists),
-        check_for_cached_error,
+        async_filter_by_replay_score,
+        async_filter_by_duration,
     )
 
     if args.logs:
         coloredlogs.install(level='INFO', logger=replay_downloader.logger)
         replay_downloader.logger.setLevel(logging.INFO)
 
-    # player_cache = pc.PlayerCache(str(args.player_cache))
-
-    # cached_player_get = pc.CachedGetPlayerData(
-    #     player_cache, tracker_network.get_player_data_with_429_retry()
-    # ).get_player_data
-
-    # mmr_filter = MMREstimateQualityFilter(cached_player_get)
-
-    # async def task_filter(session, replay_meta):
-    #     should_continue, replay_meta = await require_at_least_one_non_null_mmr(
-    #         session, replay_meta
-    #     )
-    #     if not should_continue:
-    #         return should_continue, replay_meta
-
-    #     return mmr_filter.meta_download_filter(
-    #         ReplayMeta.from_ballchasing_game(replay_meta)
-    #     ), replay_meta
-
     query_params = dict(args.query)
+    query_params.setdefault('playlist', builder.playlist.ballchasing_filter_string)
 
     pretty_params = pprint.PrettyPrinter().pformat(query_params)
     query_string = f"with query parameters:\n\n {pretty_params}\n"

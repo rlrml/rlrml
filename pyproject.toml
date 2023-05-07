@@ -24,7 +24,7 @@ cloudscraper = "^1.2.69"
 flask = "^2.2.3"
 xdg-base-dirs = "^6.0.0"
 rich = "^13.3.4"
-requests = "^2.28.2"
+requests = {extras = ["socks"], version = "^2.28.2"}
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
@@ -45,6 +45,7 @@ apply_model = 'rlrml.console:apply_model'
 calculate_loss = 'rlrml.console:calculate_mean_absolute_loss'
 manual_override = 'rlrml.console:manual_override'
 delete_if_less_than = 'rlrml.console:delete_if_less_than'
+socks_proxy_get = 'rlrml.console:socks_proxy_get'
 
 [build-system]
 requires = ["poetry-core"]

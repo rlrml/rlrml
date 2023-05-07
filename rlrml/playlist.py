@@ -17,6 +17,10 @@ class Playlist(enum.StrEnum):
     def player_count(self):
         return playlist_to_player_count[self]
 
+    @property
+    def ballchasing_filter_string(self):
+        return '-'.join(self.split(' ')[:-1]).lower().replace('duel', 'duels')
+
 
 number_playlist_pairs = list(enumerate(list(Playlist), start=1))
 number_to_playlist = dict(number_playlist_pairs)

@@ -7,7 +7,6 @@ import os
 import urllib
 
 from .parallel_downloader import ParallelDownloader, ParallelDownloaderConfig
-from .. import manifest
 
 
 logger = logging.getLogger(__name__)
@@ -16,55 +15,6 @@ logger = logging.getLogger(__name__)
 async def always_download_replay_filter(session, replay_meta) -> (bool, dict):
     """Download the provided replay unconditionally, make no modifications to the metadata."""
     return True, replay_meta
-
-
-async def require_at_least_one_non_null_mmr(_, replay_meta):
-    """Require that at least one of the mmrs in the replay meta from ballchasing is non-null.
-
-    This is actually important because there are replays on ballchasing.com for
-    which there is no estimate on mmr for any player that will pass through any
-    minimum or maximum rank filter. This filter is a quick and dirty way to
-    ensure that the filter is at least semi effective.
-    """
-    try:
-        mmr_estimates = manifest.get_mmr_data_from_manifest_game(replay_meta)
-    except Exception:
-        logger.warn("Exception getting mmr_estimate")
-        return False, replay_meta
-    return any(
-        value is not None
-        for value in mmr_estimates.values()
-    ), replay_meta
-
-
-def build_filter_existing(replay_exists):
-    """Filter any tasks for replays that already exist."""
-    async def filter_existing(_, replay_meta):
-        return (not replay_exists(replay_meta['id'])), replay_meta
-    return filter_existing
-
-
-def compose_filters(*filters):
-    """Compose the provided filters."""
-    async def new_filter(session, replay_meta):
-        for next_filter in filters:
-            should_enqueue, replay_meta = await next_filter(session, replay_meta)
-            if not should_enqueue:
-                break
-        return should_enqueue, replay_meta
-    return new_filter
-
-
-def compose_filters_with_reasons(*filters):
-    """Compose the provided filters."""
-    async def new_filter(session, replay_meta):
-        for (reason, next_filter) in filters:
-            should_enqueue, replay_meta = await next_filter(session, replay_meta)
-            if not should_enqueue:
-                logger.warn(f"{replay_meta['id']} filtered because {reason}")
-                break
-        return should_enqueue, replay_meta
-    return new_filter
 
 
 def use_replay_id(replay_fetcher, replay_metadata):
@@ -84,7 +34,7 @@ class ReplayDownloader(ParallelDownloaderConfig):
             self, auth_token,
             replay_list_query_params=None,
             filepath_setter=use_replay_id,
-            replay_filter=require_at_least_one_non_null_mmr,
+            replay_filter=always_download_replay_filter,
             ballchasing_base_uri="https://ballchasing.com/api/",
             save_tasks_to_manifest=False,
             **kwargs
@@ -152,6 +102,10 @@ class ReplayDownloader(ParallelDownloaderConfig):
             ), []
         else:
             response = await response_obj.json()
+            if "error" in response:
+                raise Exception(response["error"])
+            if "next" not in response:
+                raise Exception("No next page in response from ballchasing")
             uri, params = self._readd_original_query_parameters(response["next"])
             return (
                 session.get(uri, params=params),
