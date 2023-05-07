@@ -10,11 +10,7 @@ from . import replay_downloader
 from . import filters
 from .progress import BarProgressHandler
 
-from ..score import MMREstimateScorer
 from .. import console
-from .._replay_meta import ReplayMeta
-from .. import player_cache as pc
-from .. import tracker_network
 from .. import util
 from .. import _replay_meta
 
