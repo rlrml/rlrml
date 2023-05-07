@@ -124,7 +124,6 @@ class CloudScraperTrackerNetwork:
         """Initialize this class."""
         if len(proxy_uris) < 1:
             proxy_uris = (None,)
-        print(proxy_uris)
         self._scrapers = [self._build_scraper(uri) for uri in proxy_uris]
         self._proxy_uris = proxy_uris
         self._scraper_index = 0
@@ -180,66 +179,6 @@ class CloudScraperTrackerNetwork:
             "profile": profile_result,
             "mmr": mmr_result,
         })
-
-
-class CurlTrackerNetwork:
-    """Use the low level aiocurl api to perform requests to the tracker network."""
-
-    def __init__(self, multi=None):
-        """Initialize this class."""
-        self._multi = multi or aiocurl.CurlMulti()
-
-    async def get_tracker_json(self, uri):
-        """Get the json object returned from the provided URI."""
-        headers = {"User-Agent": "MMRFetcher"}
-        header_strings = ["{}: {}".format(str(each[0]), str(each[1])) for each in headers.items()]
-
-        buf = BytesIO()
-        headers_buf = BytesIO()
-        handle = aiocurl.Curl()
-
-        handle.setopt(aiocurl.URL, uri)
-        handle.setopt(aiocurl.HTTPHEADER, header_strings)
-        handle.setopt(aiocurl.WRITEDATA, buf)
-        handle.setopt(aiocurl.HEADERFUNCTION, headers_buf.write)
-
-        await self._multi.perform(handle)
-
-        status_code = handle.getinfo(aiocurl.HTTP_CODE)
-        if status_code != 200:
-            try:
-                request_line, headers_alone = headers_buf.getvalue().split(b'\r\n', 1)
-                response_headers = dict(BytesParser().parsebytes(headers_alone))
-            except Exception:
-                response_headers = {}
-            raise Non200Exception(status_code, response_headers)
-
-        return json.loads(buf.getvalue().decode('utf-8'))
-
-    async def get_player_data(self, player):
-        """Combine info from the main player page and the mmr history player page."""
-        uri = get_profile_uri_for_player(player)
-        profile_result = await self.get_tracker_json(uri)
-        mmr_result = None
-
-        tracker_api_id = profile_result["data"]["metadata"]["playerId"]
-
-        mmr_history_uri = get_mmr_history_uri_by_id(tracker_api_id)
-        mmr_result = await self.get_tracker_json(mmr_history_uri)
-
-        return {
-            "profile": profile_result,
-            "mmr": mmr_result,
-        }
-
-    async def get_player_data_with_auto_reset(self, player):
-        """Call get_player_data and reset internal aiocurl components 1 time on exception."""
-        try:
-            return await self.get_player_data(player)
-        except aiocurl.error as e:
-            logger.warn(f"Encountered {e} on get_player_data, retrying")
-            self._multi = aiocurl.CurlMulti()
-            return await self.get_player_data(player)
 
 
 def _log_backoff(details):
