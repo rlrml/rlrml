@@ -74,6 +74,14 @@ def feature_count_for(playlist, header_info):
     )
 
 
+def segment_list(input_list, k):
+    if k <= 0:
+        raise ValueError("Segment size must be greater than 0")
+
+    for i in range(0, len(input_list), k):
+        yield input_list[i:i + k]
+
+
 class HorribleHackScaler:
 
     @classmethod
