@@ -115,7 +115,6 @@ class ReplaySetAssesor:
         return True
 
     def _get_replay_status(self, uuid, load_tensor=True):
-        logger.info(self._replay_set.replay_path(uuid))
         if (
                 isinstance(self._replay_set, load.CachedReplaySet) and not
                 load_tensor and self._replay_set.is_cached(uuid)
