@@ -50,14 +50,6 @@ class ReplayDownloader(ParallelDownloaderConfig):
         self._enqueued_uuids = set()
 
     @property
-    def _replay_list_request_query_params_string(self):
-        return "&".join([
-            "{}={}".format(key, value)
-            for key, value
-            in self.replay_list_query_params.items()
-        ])
-
-    @property
     def _replay_list_request_uri(self):
         return "{}replays".format(self.ballchasing_base_uri)
 

@@ -131,15 +131,16 @@ class CloudScraperTrackerNetwork:
 
     def _build_scraper(self, proxy_uri=None):
         scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
-        scraper.proxies = {} if proxy_uri is None else {
-            "http": proxy_uri,
-            "https": proxy_uri,
-        }
+        if proxy_uri is not None:
+            scraper.proxies = {
+                "http": proxy_uri,
+                "https": proxy_uri,
+            }
         return scraper
 
     def _next_scraper(self):
         scraper = self._scrapers[self._scraper_index]
-        self._scraper_index = self._scraper_index + 1 % len(self._scrapers)
+        self._scraper_index = (self._scraper_index + 1) % len(self._scrapers)
         return scraper
 
     @property
@@ -148,7 +149,7 @@ class CloudScraperTrackerNetwork:
 
     def refresh_scraper(self, offset=0):
         """Make a new scraper."""
-        index = self._scraper_index + offset % len(self._scrapers)
+        index = (self._scraper_index + offset) % len(self._scrapers)
         self._scrapers[index] = self._build_scraper(self._proxy_uris[index])
 
     def __get(self, uri):
@@ -161,7 +162,7 @@ class CloudScraperTrackerNetwork:
     def _get(self, uri):
         try:
             return self.__get(uri)
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.Timeout, requests.exceptions.ReadTimeout):
             logger.warn("Trying refreshing scraper after a timeout")
             self.refresh_scraper(offset=-1)
             return self.__get(uri)

@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 async def async_require_at_least_one_non_null_mmr(_, replay_meta):
-    return require_at_least_one_non_null_mmr(replay_meta)
+    return require_at_least_one_non_null_mmr(replay_meta), replay_meta
 
 
 def require_at_least_one_non_null_mmr(replay_meta):
@@ -26,7 +26,7 @@ def require_at_least_one_non_null_mmr(replay_meta):
     return any(
         value is not None
         for value in mmr_estimates.values()
-    ), replay_meta
+    )
 
 
 def build_filter_existing(replay_exists):
@@ -57,3 +57,9 @@ def compose_filters_with_reasons(*filters):
                 break
         return should_enqueue, replay_meta
     return new_filter
+
+
+def compose_sync_filters(*filters):
+    def _filter(replay_meta):
+        return all(f(replay_meta) for f in filters)
+    return _filter

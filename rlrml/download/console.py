@@ -9,6 +9,7 @@ import logging
 from . import replay_downloader
 from . import filters
 from .progress import BarProgressHandler
+from . import sync
 
 from .. import console
 from .. import util
@@ -51,6 +52,9 @@ def run():
     parser.add_argument(
         '--min-duration', type=int, default=150
     )
+    parser.add_argument(
+        '--sync', action='store_true', default=False
+    )
     args = parser.parse_args()
     builder = console._RLRMLBuilder(args)
     builder._setup_default_logging()
@@ -70,25 +74,25 @@ def run():
 
         additional_condition = True
         if args.min_mmr_disparity is not None:
-            player_mmrs = [mmr for _, mmr in score_info.estimates]
-            max_mmr = max(player_mmrs)
-            min_mmr = min(player_mmrs)
-            additional_condition = max_mmr - min_mmr >= args.min_mmr_disparity
-            logger.info(f"{max_mmr}, {min_mmr}, {additional_condition}")
+            player_mmrs = [mmr for _, mmr in score_info.estimates if mmr > 0]
+            if player_mmrs:
+                max_mmr = max(player_mmrs)
+                min_mmr = min(player_mmrs)
+                additional_condition = max_mmr - min_mmr >= args.min_mmr_disparity
+                logger.info(f"{max_mmr}, {min_mmr}, {additional_condition}")
+            else:
+                additional_condition = False
 
-        return (
-            additional_condition and score_info.meta_score >= args.minimum_replay_score,
-            replay_meta
-        )
+        return additional_condition and score_info.meta_score >= args.minimum_replay_score
 
     async def async_filter_by_replay_score(_, replay_meta):
-        return filter_by_replay_score(replay_meta)
+        return filter_by_replay_score(replay_meta), replay_meta
 
     def filter_by_duration(replay_meta):
-        return replay_meta['duration'] > args.min_duration, replay_meta
+        return replay_meta['duration'] > args.min_duration
 
     async def async_filter_by_duration(_, replay_meta):
-        return filter_by_duration(replay_meta)
+        return filter_by_duration(replay_meta), replay_meta
 
     task_filter = filters.compose_filters(
         filters.async_require_at_least_one_non_null_mmr,
@@ -111,11 +115,21 @@ def run():
         f"\nDownloading {args.count} replays to:\n\n{args.path}\n\n{query_string}"
     )
 
-    with tqdm.tqdm(total=args.count) as pbar:
-        replay_downloader.ReplayDownloader(
-            args.ballchasing_token, download_path=args.path, download_count=args.count,
-            download_task_count=args.task_count, filter_task_count=args.task_count,
-            progress_handler=BarProgressHandler(pbar),
-            replay_list_query_params=query_params,
-            replay_filter=task_filter,
-        ).start_event_loop_and_run()
+    if args.sync:
+        sync.SynchronousReplayDownloader(
+            args.ballchasing_token, args.path, replay_list_query_params=query_params,
+            replay_filter=filters.compose_sync_filters(
+                filter_by_duration,
+                filters.require_at_least_one_non_null_mmr,
+                filter_by_replay_score,
+            )
+        ).download_replays(args.count)
+    else:
+        with tqdm.tqdm(total=args.count) as pbar:
+            replay_downloader.ReplayDownloader(
+                args.ballchasing_token, download_path=args.path, download_count=args.count,
+                download_task_count=args.task_count, filter_task_count=args.task_count,
+                progress_handler=BarProgressHandler(pbar),
+                replay_list_query_params=query_params,
+                replay_filter=task_filter,
+            ).start_event_loop_and_run()
