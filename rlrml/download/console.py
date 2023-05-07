@@ -27,9 +27,6 @@ def run():
     parser = console._add_rlrml_args(argparse.ArgumentParser())
 
     default_path = os.path.join(os.getcwd(), "replays")
-    parser.add_argument(
-        '--auth-token', help="A ballchasing.com authorization token.", type=str, required=True
-    )
     parser.add_argument('--count', type=int, help="Number of replays to download", default=100)
     parser.add_argument(
         '--path', type=str, help="The directory in which to store replays", default=default_path
@@ -97,9 +94,9 @@ def run():
     async def async_filter_by_duration(_, replay_meta):
         return filter_by_duration(replay_meta)
 
-    task_filter = replay_downloader.compose_filters(
-        replay_downloader.require_at_least_one_non_null_mmr,
-        replay_downloader.build_filter_existing(replay_exists),
+    task_filter = filters.compose_filters(
+        filters.async_require_at_least_one_non_null_mmr,
+        filters.build_filter_existing(replay_exists),
         async_filter_by_replay_score,
         async_filter_by_duration,
     )
