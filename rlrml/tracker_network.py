@@ -120,18 +120,41 @@ def combine_profile_and_mmr_json(data):
 class CloudScraperTrackerNetwork:
     """Use the cloudscraper library to perform requests to the tracker network."""
 
-    def __init__(self, scraper=None, base_uri="https://api.tracker.gg"):
+    def __init__(self, base_uri="https://api.tracker.gg", proxy_uris=(None,)):
         """Initialize this class."""
-        self._scraper = scraper or cloudscraper.create_scraper(delay=1, browser="chrome")
+        if len(proxy_uris) < 1:
+            proxy_uris = (None,)
+        print(proxy_uris)
+        self._scrapers = [self._build_scraper(uri) for uri in proxy_uris]
+        self._proxy_uris = proxy_uris
+        self._scraper_index = 0
         self._base_uri = base_uri
 
-    def refresh_scraper(self):
+    def _build_scraper(self, proxy_uri=None):
+        scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
+        scraper.proxies = {} if proxy_uri is None else {
+            "http": proxy_uri,
+            "https": proxy_uri,
+        }
+        return scraper
+
+    def _next_scraper(self):
+        scraper = self._scrapers[self._scraper_index]
+        self._scraper_index = self._scraper_index + 1 % len(self._scrapers)
+        return scraper
+
+    @property
+    def _scraper(self):
+        return self._next_scraper()
+
+    def refresh_scraper(self, offset=0):
         """Make a new scraper."""
-        self._scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
+        index = self._scraper_index + offset % len(self._scrapers)
+        self._scrapers[index] = self._build_scraper(self._proxy_uris[index])
 
     def __get(self, uri):
         logger.info(f"Cloud scraper request {uri}")
-        resp = self._scraper.get(uri, timeout=6)
+        resp = self._next_scraper().get(uri, timeout=6)
         if resp.status_code != 200:
             raise Non200Exception(resp.status_code, resp.headers)
         return resp.json()
@@ -141,7 +164,7 @@ class CloudScraperTrackerNetwork:
             return self.__get(uri)
         except requests.exceptions.Timeout:
             logger.warn("Trying refreshing scraper after a timeout")
-            self.refresh_scraper()
+            self.refresh_scraper(offset=-1)
             return self.__get(uri)
 
     def get_player_data(self, player):

@@ -28,6 +28,7 @@ from . import _replay_meta
 from .assess import ReplaySetAssesor
 from .model import train, build
 from .playlist import Playlist
+from .network import socks
 
 
 def _load_rlrml_config(config_path=None):
@@ -36,7 +37,8 @@ def _load_rlrml_config(config_path=None):
         import tomllib
         with open(config_path, 'r') as f:
             return tomllib.loads(f.read())['rlrml']
-    except Exception:
+    except Exception as e:
+        logger.warn(f"Hit exception trying to load rlrml config: {e}")
         return {}
 
 
@@ -102,6 +104,13 @@ def _add_rlrml_args(parser=None):
         '--model-path',
         help="The path from which to load a model",
         default=defaults.get('model-path')
+    )
+    parser.add_argument(
+        '--add-proxy',
+        help="Add a socks proxy uri.",
+        action='append',
+        dest="socks_proxy_urls",
+        default=defaults.get('socks-proxy-urls', [])
     )
     parser.add_argument(
         '--lstm-width',
@@ -180,7 +189,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def tracker_network_cloud_scraper(self):
-        return tracker_network.CloudScraperTrackerNetwork()
+        return tracker_network.CloudScraperTrackerNetwork(proxy_uris=self._args.socks_proxy_urls)
 
     @functools.cached_property
     def bare_get_player_data(self):
@@ -428,6 +437,16 @@ def ballchasing_lookup():
     ).json()
     mmr_data = manifest.get_mmr_data_from_manifest_game(game_data)
     print(json.dumps(mmr_data))
+
+
+@_RLRMLBuilder.add_args("uri")
+def socks_proxy_get(builder: _RLRMLBuilder):
+    for i in range(6):
+        result = builder.tracker_network_cloud_scraper.get_player_data(
+            {"__tracker_suffix__": "epic/colonel_panic8"}
+        )
+        print(result)
+
 
 @_RLRMLBuilder.add_args("player_key")
 def get_player(builder: _RLRMLBuilder):
