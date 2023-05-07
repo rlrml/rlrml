@@ -8,7 +8,6 @@ import functools
 import logging
 import os
 import requests
-import sys
 import torch
 import json
 import xdg_base_dirs
@@ -28,7 +27,6 @@ from . import _replay_meta
 from .assess import ReplaySetAssesor
 from .model import train, build
 from .playlist import Playlist
-from .network import socks
 
 
 def _load_rlrml_config(config_path=None):
