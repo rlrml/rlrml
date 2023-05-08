@@ -140,17 +140,18 @@ class CachedGetPlayerData:
         self._retry_errors = retry_errors
         self._cache_misses = cache_misses
 
-    def get_player_data(self, player_meta):
+    def get_player_data(self, player_meta, force_refresh=False):
         """Get player data from cache or get_player_data."""
 
-        player_data = self._player_cache.get_player_data(player_meta)
-        if player_data and self._player_cache.error_key in player_data:
-            if player_data[self._player_cache.error_key]['type'] in self._retry_errors:
-                pass
-            else:
+        if not force_refresh:
+            player_data = self._player_cache.get_player_data(player_meta)
+            if player_data and self._player_cache.error_key in player_data:
+                if player_data[self._player_cache.error_key]['type'] in self._retry_errors:
+                    pass
+                else:
+                    return player_data
+            elif player_data:
                 return player_data
-        elif player_data:
-            return player_data
 
         try:
             player_data = self._get_player_data(player_meta)
