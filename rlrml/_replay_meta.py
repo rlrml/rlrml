@@ -3,6 +3,8 @@ import datetime
 import logging
 import itertools
 
+from . import playlist
+
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +121,6 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
             logger.warn(f"Using imperfect equality for {player} because {e}")
             return player.name == self.name
 
-    def __eq__(self, other):
-        return self.name == other.name and self.platform == other.platform
-
 
 class SteamPlayer(PlatformPlayer):
     """A player on the steam platform."""
@@ -133,8 +132,7 @@ class SteamPlayer(PlatformPlayer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self._online_id is None:
-            import ipdb; ipdb.set_trace()
+        assert self._online_id is not None
 
     @property
     def tracker_identifier(self):
@@ -245,7 +243,8 @@ class ReplayMeta:
         return cls(
             datetime.datetime.fromisoformat(obj["datetime"]),
             [PlatformPlayer.from_dict(player) for player in obj["team_zero"]],
-            [PlatformPlayer.from_dict(player) for player in obj["team_one"]]
+            [PlatformPlayer.from_dict(player) for player in obj["team_one"]],
+            headers=obj.get("headers", [])
         )
 
     @classmethod
@@ -256,6 +255,7 @@ class ReplayMeta:
             datetime.datetime.strptime(headers['Date'], "%Y-%m-%d %H-%M-%S"),
             [PlatformPlayer.from_boxcar_frames_player_info(p) for p in meta['team_zero']],
             [PlatformPlayer.from_boxcar_frames_player_info(p) for p in meta['team_one']],
+            headers=headers,
         )
 
     @classmethod
@@ -300,19 +300,27 @@ class ReplayMeta:
 
     def __init__(
             self, replay_datetime: datetime.datetime,
-            team_zero: [PlatformPlayer], team_one: [PlatformPlayer]
+            team_zero: [PlatformPlayer], team_one: [PlatformPlayer],
+            headers=()
     ):
         self.datetime = replay_datetime
         self.team_zero = team_zero
         self.team_one = team_one
+        self.headers = headers
 
     def to_dict(self):
         return {
             "datetime": self.datetime.isoformat(),
             "team_zero": [player.to_dict() for player in self.team_zero],
-            "team_one": [player.to_dict() for player in self.team_one]
+            "team_one": [player.to_dict() for player in self.team_one],
+            "headers": self.headers
         }
 
     @property
     def player_order(self):
         return itertools.chain(self.team_zero, self.team_one)
+
+    @property
+    def playlist(self):
+        if len(self.team_one) == len(self.team_zero):
+            return playlist.number_to_playlist[len(self.team_zero)]
