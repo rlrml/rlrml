@@ -136,6 +136,10 @@ class CloudScraperTrackerNetwork:
                 "http": proxy_uri,
                 "https": proxy_uri,
             }
+        scraper.headers.update({
+            'referer': "https://rocketleague.tracker.network",
+            'origin': "https://rocketleague.tracker.network",
+        })
         return scraper
 
     def _next_scraper(self):
@@ -153,7 +157,7 @@ class CloudScraperTrackerNetwork:
         self._scrapers[index] = self._build_scraper(self._proxy_uris[index])
 
     def __get(self, uri):
-        logger.info(f"Cloud scraper request {uri}")
+        logger.debug(f"Cloud scraper request {uri}")
         resp = self._next_scraper().get(uri, timeout=6)
         if resp.status_code != 200:
             raise Non200Exception(resp.status_code, resp.headers)
