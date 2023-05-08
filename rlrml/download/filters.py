@@ -20,8 +20,8 @@ def require_at_least_one_non_null_mmr(replay_meta):
     """
     try:
         mmr_estimates = manifest.get_mmr_data_from_manifest_game(replay_meta)
-    except Exception:
-        logger.warn("Exception getting mmr_estimate")
+    except Exception as e:
+        logger.warn(f"Exception getting mmr_estimate {e}")
         return False, replay_meta
     return any(
         value is not None
@@ -62,4 +62,16 @@ def compose_filters_with_reasons(*filters):
 def compose_sync_filters(*filters):
     def _filter(replay_meta):
         return all(f(replay_meta) for f in filters)
+    return _filter
+
+
+def compose_sync_filters_with_reasons(*pairs):
+    def _filter(replay_meta):
+        for f, reason in pairs:
+            if not f(replay_meta):
+                uuid = replay_meta['id']
+                logger.info(f"Skipping {uuid} because {reason}")
+                return False
+        return True
+
     return _filter

@@ -181,13 +181,33 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def cached_get_player_data(self):
-        return pc.CachedGetPlayerData(
-            self.player_cache, self.network_get_player_data
-        ).get_player_data
+        getter = pc.CachedGetPlayerData(
+            self.player_cache, self.network_get_player_data, retry_errors=("500",)
+        )
+        ids_to_check = ['14d9cf07-ad46-440c-bac5-000d778449c2']
+
+        def _hack_to_check_for_bad_data(player, *args, **kwargs):
+            player_data = getter.get_player_data(player, *args, **kwargs)
+            if player_data and 'platform' in player_data and (
+                    player_data['platform']['platformUserId'] in ids_to_check
+            ):
+                old_id = player_data['platform']['platformUserId']
+                player_data = getter.get_player_data(player, force_refresh=True)
+                try:
+                    new_id = player_data['platform']['platformUserId']
+                except Exception:
+                    if '__error__' not in player_data:
+                        import ipdb; ipdb.set_trace()
+                else:
+                    logger.warn(f"Weird id {old_id} for {player}, after {new_id}")
+            return player_data
+        return _hack_to_check_for_bad_data
 
     @functools.cached_property
     def tracker_network_cloud_scraper(self):
-        return tracker_network.CloudScraperTrackerNetwork(proxy_uris=self._args.socks_proxy_urls)
+        return tracker_network.CloudScraperTrackerNetwork(
+            proxy_uris=self._args.socks_proxy_urls
+        )
 
     @functools.cached_property
     def bare_get_player_data(self):
@@ -451,10 +471,11 @@ def get_player(builder: _RLRMLBuilder):
     """Get the provided player either from the cache or the tracker network."""
 
     player = {"__tracker_suffix__": builder._args.player_key}
+    builder.cached_get_player_data(player, force_refresh=True)
     data = builder.player_cache.get_player_data(
         player
     )
-    print(json.dumps(data))
+    print(json.dumps(data['platform']))
     import datetime
     print(builder.lookup_label(player, datetime.date.today()))
 

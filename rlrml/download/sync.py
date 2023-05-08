@@ -1,6 +1,6 @@
+import backoff
 import os
 import requests
-from . import replay_downloader
 from .. import util
 import urllib
 
@@ -35,7 +35,7 @@ class SynchronousReplayDownloader:
         return "{}replays".format(self._ballchasing_base_uri)
 
     def _replay_download_uri(self, replay_id):
-        return "{}replays/{}/file".format(self.ballchasing_base_uri, replay_id)
+        return "{}replays/{}/file".format(self._ballchasing_base_uri, replay_id)
 
     def _readd_original_query_parameters(self, url):
         parsed = urllib.parse.urlparse(url)
@@ -56,8 +56,15 @@ class SynchronousReplayDownloader:
         while downloaded_count < count:
             next_uri, download_count = self._process_page_response(response)
             downloaded_count += download_count
-            uri, params = self._readd_original_query_parameters(next_uri)
-            response = self._session.get(uri, params=params).json()
+            response = self._get_next_page_response(next_uri).json()
+
+    @backoff.on_exception(
+        backoff.expo,
+        (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+    )
+    def _get_next_page_response(self, next_uri):
+        uri, params = self._readd_original_query_parameters(next_uri)
+        return self._session.get(uri, params=params, timeout=6)
 
     def _process_page_response(self, response):
         count = 0
@@ -66,20 +73,24 @@ class SynchronousReplayDownloader:
                 count += 1
         return response['next'], count
 
+    @backoff.on_exception(
+        backoff.expo,
+        (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+    )
     def _process_replay(self, replay_meta):
+        target_filepath = self._get_filepath(replay_meta)
+        uuid = replay_meta['id']
+        if uuid in self._uuid_to_path:
+            if self._symlink_if_known:
+                source_filepath = self._uuid_to_path[uuid]
+                if source_filepath != target_filepath:
+                    os.symlink(source_filepath, target_filepath)
+            return
         if self._replay_filter(replay_meta):
-            target_filepath = self._get_filepath(replay_meta)
-            uuid = replay_meta['id']
-            if uuid in self._uuid_to_path:
-                if self._symlink_if_known:
-                    source_filepath = self._uuid_to_path[uuid]
-                    if source_filepath != target_filepath:
-                        os.symlink(source_filepath, target_filepath)
-            else:
-                uri = self._replay_download_uri(uuid)
-                response = self._session.get(uri)
-                with open(target_filepath, 'wb') as f:
-                    f.write(response.content)
+            uri = self._replay_download_uri(uuid)
+            response = self._session.get(uri, timeout=6)
+            with open(target_filepath, 'wb') as f:
+                f.write(response.content)
 
     def _get_filepath(self, task_meta):
         """Return the filepath that should be used to store the download."""

@@ -68,22 +68,41 @@ def run():
     def replay_exists(uuid):
         return uuid in existing_replay_uuids
 
-    def filter_by_replay_score(replay_meta):
-        meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
-        score_info = builder.player_mmr_estimate_scorer.score_replay_meta(meta)
+    def filter_by_known_miss(replay_meta):
+        try:
+            meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
+        except Exception:
+            return False
 
-        additional_condition = True
+        for player in meta.player_order:
+            data = builder.player_cache.get_player_data(player)
+            if data and '__error__' in data:
+                return False
+        return True
+
+    def filter_by_replay_score(replay_meta):
+        try:
+            meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
+        except Exception:
+            return False
+        score_info = builder.player_mmr_estimate_scorer.score_replay_meta(meta)
+        replay_meta['score_info'] = score_info
+        result = score_info.meta_score >= args.minimum_replay_score
+
+        if not result:
+            logger.info(f"{score_info}")
+        return result
+
+    def filter_by_disparity(replay_meta):
         if args.min_mmr_disparity is not None:
-            player_mmrs = [mmr for _, mmr in score_info.estimates if mmr > 0]
+            if 'score_info' not in replay_meta:
+                return False
+            player_mmrs = [mmr for _, mmr in replay_meta['score_info'].estimates if mmr]
             if player_mmrs:
                 max_mmr = max(player_mmrs)
                 min_mmr = min(player_mmrs)
-                additional_condition = max_mmr - min_mmr >= args.min_mmr_disparity
-                logger.info(f"{max_mmr}, {min_mmr}, {additional_condition}")
-            else:
-                additional_condition = False
-
-        return additional_condition and score_info.meta_score >= args.minimum_replay_score
+            return max_mmr - min_mmr >= args.min_mmr_disparity
+        return True
 
     async def async_filter_by_replay_score(_, replay_meta):
         return filter_by_replay_score(replay_meta), replay_meta
@@ -118,10 +137,12 @@ def run():
     if args.sync:
         sync.SynchronousReplayDownloader(
             args.ballchasing_token, args.path, replay_list_query_params=query_params,
-            replay_filter=filters.compose_sync_filters(
-                filter_by_duration,
-                filters.require_at_least_one_non_null_mmr,
-                filter_by_replay_score,
+            replay_filter=filters.compose_sync_filters_with_reasons(
+                (filter_by_duration, "Insufficient duration"),
+                (filters.require_at_least_one_non_null_mmr, "No mmrs were non-null"),
+                (filter_by_known_miss, "Had player with known 404"),
+                (filter_by_replay_score, "Replay score was too low"),
+                (filter_by_disparity, "Disparity wasn't high enough")
             )
         ).download_replays(args.count)
     else:
