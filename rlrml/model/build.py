@@ -8,7 +8,7 @@ from .. import util
 class ReplayModel(nn.Module):
     def __init__(
             self, header_info, playlist: Playlist, kernel_size=10, stride=2,
-            dropout=.2, lstm_width=512
+            dropout=.05, lstm_width=512
     ):
         super().__init__()
         self._input_width = util.feature_count_for(playlist, header_info)
@@ -18,7 +18,7 @@ class ReplayModel(nn.Module):
         self._lstm_width = lstm_width
 
         self._input_lstm = nn.LSTM(
-            self._input_width, self._lstm_width, batch_first=True, dropout=.12, num_layers=2
+            self._input_width, self._lstm_width, batch_first=True, dropout=dropout, num_layers=2
         )
 
         # self._middle_lstm = nn.LSTM(

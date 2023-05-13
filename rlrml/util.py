@@ -61,9 +61,11 @@ def symlink_replays(target_directory, replay_uuids, replay_set):
     if not os.path.exists(target_directory):
         os.makedirs(target_directory)
     for uuid in replay_uuids:
-        os.symlink(
-            replay_set.replay_path(uuid), os.path.join(target_directory, f"{uuid}.replay")
-        )
+        target_path = os.path.join(target_directory, f"{uuid}.replay")
+        if not os.path.exists(target_path):
+            os.symlink(
+                replay_set.replay_path(uuid), os.path.join(target_directory, f"{uuid}.replay")
+            )
 
 
 def feature_count_for(playlist, header_info):

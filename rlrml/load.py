@@ -62,6 +62,12 @@ class CachedReplaySet(ReplaySet):
         if ensure_bcf_arg_match:
             self._check_boxcar_frames_arguments_match()
 
+    def bust_cache(self, uuid):
+        paths = self._get_tensor_and_meta_path(uuid)
+        for path in paths:
+            if os.path.exists(path):
+                os.remove(path)
+
     @property
     def _boxcar_frames_arguments_path(self):
         return os.path.join(self._cache_directory, ".boxcars_frames_arguments")
@@ -141,6 +147,8 @@ class CachedReplaySet(ReplaySet):
 
     def get_replay_meta(self, uuid) -> ReplayMeta:
         meta_path = self._cache_path_for_replay_with_extension(uuid, self._meta_extension)
+        if not os.path.exists(meta_path):
+            return self.get_replay_tensor(uuid)[1]
         with open(meta_path, 'rb') as f:
             return ReplayMeta.from_dict(json.loads(f.read()))
 

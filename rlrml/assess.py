@@ -43,11 +43,12 @@ class ReplaySetAssesor:
 
     def __init__(
             self, replay_set: load.ReplaySet, scorer,
-            playlist=Playlist.DOUBLES
+            playlist=Playlist.DOUBLES, ignore_known_errors=True
     ):
         self._replay_set = replay_set
         self._scorer = scorer
         self._playlist = Playlist(playlist)
+        self._ignore_known_errors = ignore_known_errors
 
     def get_replay_statuses(self, load_tensor=True):
         return {
@@ -100,6 +101,7 @@ class ReplaySetAssesor:
         "Players found in frames that were not part of",
         "Replay is corrupt",
         "Could not decode replay content data at offset",
+        "Could not decode replay header data",
         "Could not find actor for"
     ]
 
@@ -110,17 +112,22 @@ class ReplaySetAssesor:
             pass
         else:
             for error_text in self.known_errors:
-                if error_text in exception_text:
+                if self._ignore_known_errors and error_text in exception_text:
                     return False
         return True
 
-    def _get_replay_status(self, uuid, load_tensor=True):
+    def _get_replay_status(self, uuid, load_tensor=True, require_headers=True):
+        meta = None
         if (
                 isinstance(self._replay_set, load.CachedReplaySet) and not
                 load_tensor and self._replay_set.is_cached(uuid)
         ):
             meta = self._replay_set.get_replay_meta(uuid)
-        else:
+            if require_headers and not meta.headers:
+                self._replay_set.bust_cache(uuid)
+                meta = None
+
+        if meta is None:
             try:
                 _, meta = self._replay_set.get_replay_tensor(uuid)
             except Exception as e:

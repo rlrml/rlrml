@@ -26,13 +26,15 @@ class MMREstimateScorer:
     def __init__(
             self, get_player_data, season_dates=mmr.TIGHTENED_SEASON_DATES,
             score_game_count=scaled_sigmoid, meta_score=np.prod,
-            minimum_games_for_mmr=lambda mmr: 0
+            minimum_games_for_mmr=lambda mmr: 0,
+            mmr_disparity_requires_victory_threshold=50,
     ):
         self._get_player_data = get_player_data
         self._season_dates = season_dates
         self._score_game_count = score_game_count
         self._meta_score = meta_score
         self._minimum_games_for_mmr = minimum_games_for_mmr
+        self._mmr_disparity_requries_victory_threshold = mmr_disparity_requires_victory_threshold
 
     def score_replay_meta(
             self, meta: _replay_meta.ReplayMeta, abort_score=0.0,
@@ -41,15 +43,36 @@ class MMREstimateScorer:
         game_date = meta.datetime.date()
         estimates = []
         scores = []
-        for player in meta.player_order:
-            estimate, score = self.score_player_mmr_estimate(player, game_date, playlist=playlist)
-            estimates.append((player, estimate))
-            scores.append(score)
-            meta_score = self._meta_score(scores)
-            # if estimate is None or self._meta_score(scores) <= abort_score:
-            #     return meta_score, estimates, scores
+
+        team_to_mmr_total = {
+            0: 0,
+            1: 0,
+        }
+        for team_index, team in enumerate((meta.team_zero, meta.team_one)):
+            for player in team:
+                estimate, score = self.score_player_mmr_estimate(
+                    player, game_date, playlist=playlist
+                )
+                estimates.append((player, estimate))
+                team_to_mmr_total[team_index] += estimate or 0
+                scores.append(score)
 
         meta_score = self._meta_score(scores)
+
+        team_zero_mmr_advantage = team_to_mmr_total[0] - team_to_mmr_total[1]
+        if abs(team_zero_mmr_advantage) >= (
+                self._mmr_disparity_requries_victory_threshold * len(meta.team_zero)
+        ):
+            # Ensure that the team that won was the team with the higher mmr
+            if "Team0Score" in meta.headers and "Team1Score" in meta.headers:
+                team_zero_score_advantage = (
+                    meta.headers["Team0Score"] - meta.headers["Team1Score"]
+                )
+                if np.sign(team_zero_score_advantage) != np.sign(team_zero_mmr_advantage):
+                    meta_score = 0
+        else:
+            meta_score = 0
+
         return MetaScoreInfo(meta_score, estimates, scores)
 
     def score_player_mmr_estimate(

@@ -85,7 +85,9 @@ def run():
             meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
         except Exception:
             return False
-        score_info = builder.player_mmr_estimate_scorer.score_replay_meta(meta)
+        score_info = builder.player_mmr_estimate_scorer.score_replay_meta(
+            meta, playlist=builder.playlist
+        )
         replay_meta['score_info'] = score_info
         result = score_info.meta_score >= args.minimum_replay_score
 
@@ -108,7 +110,7 @@ def run():
         return filter_by_replay_score(replay_meta), replay_meta
 
     def filter_by_duration(replay_meta):
-        return replay_meta['duration'] > args.min_duration
+        return replay_meta.get('duration', 0) > args.min_duration
 
     async def async_filter_by_duration(_, replay_meta):
         return filter_by_duration(replay_meta), replay_meta

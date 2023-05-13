@@ -444,17 +444,16 @@ def get_cache_answer_uuids(builder):
     import ipdb; ipdb.set_trace()
 
 
-def ballchasing_lookup():
-    import requests
-    parser = _add_rlrml_args()
-    parser.add_argument('uuid')
-    args = parser.parse_args()
+@_RLRMLBuilder.add_args("uuid")
+def ballchasing_lookup(builder: _RLRMLBuilder):
     game_data = requests.get(
-        f"https://ballchasing.com/api/replays/{args.uuid}",
-        headers={'Authorization': args.ballchasing_token},
+        f"https://ballchasing.com/api/replays/{builder._args.uuid}",
+        headers={'Authorization': builder._args.ballchasing_token},
     ).json()
-    mmr_data = manifest.get_mmr_data_from_manifest_game(game_data)
-    print(json.dumps(mmr_data))
+    meta = _replay_meta.ReplayMeta.from_ballchasing_game(game_data)
+    for player in meta.player_order:
+        label = builder.lookup_label(player, meta.datetime)
+        print(f"{player} - {label}")
 
 
 @_RLRMLBuilder.add_args("uri")
@@ -565,7 +564,17 @@ def delete_if_less_than(builder:  _RLRMLBuilder):
 
     logger.info(f"fine: {fine}, deleted: {deleted}")
 
+
+@_RLRMLBuilder.add_args("game_uuid")
+def score_game(builder: _RLRMLBuilder):
+    meta = builder.cached_directory_replay_set.get_replay_meta(builder._args.game_uuid)
+    builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
+
+
 @_RLRMLBuilder.add_args("src_filepath", "dest_filepath")
 def game_to_json(builder: _RLRMLBuilder):
-    builder.write_game_json_to_file(builder._args.src_filepath, builder._args.dest_filepath, fps=30, global_feature_adders = [ "BallRigidBodyNoVelocities", "SecondsRemaining" ])
+    builder.write_game_json_to_file(
+        builder._args.src_filepath, builder._args.dest_filepath,
+        fps=30, global_feature_adders=["BallRigidBodyNoVelocities", "SecondsRemaining"]
+    )
     #builder.mmr_plot_to_json(builder._args.src_filepath, builder._args.dest_filepath);
