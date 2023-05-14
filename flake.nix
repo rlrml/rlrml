@@ -24,20 +24,27 @@
 
         devShells.default = pkgs.mkShell rec {
           packages = [ poetry2nix.packages.${system}.poetry ];
-          LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib/:/run/opengl-driver/lib/";
-          buildInputs = [
-              pkgs.python311
-              pkgs.poetry
-              pkgs.zlib
-              pkgs.rustup
-              pkgs.curl
-              pkgs.leveldb
-            ];
+          buildInputs = with pkgs; [
+            linuxPackages.nvidia_x11
+            cudaPackages.cudnn
+            cudaPackages.nccl
+            cudaPackages.cudatoolkit
+            python311
+            poetry
+            zlib
+            rustup
+            curl
+            leveldb
+            stdenv.cc.cc.lib
+          ];
 
-            shellHook = ''
-              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH"
-              export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib.outPath}/lib:$LD_LIBRARY_PATH"
-            '';
+          CUDA_TOOLKIT = "${pkgs.cudaPackages.cudatoolkit}/lib";
+
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+
+          shellHook = ''
+            export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CUDA_TOOLKIT"
+          '';
         };
       });
 }
