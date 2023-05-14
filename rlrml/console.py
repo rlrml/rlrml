@@ -18,7 +18,6 @@ from . import _http_graph_server
 from . import score
 from . import load
 from . import logger
-from . import manifest
 from . import player_cache as pc
 from . import tracker_network
 from . import util
@@ -287,7 +286,6 @@ class _RLRMLBuilder:
             )
         return _load_game_from_filepath
 
-    # do json stuff
     def game_to_dictionary(self, filepath, **kwargs):
         meta, data = self.load_game_from_filepath(filepath, **kwargs)
         column_headers = meta['column_headers']
@@ -295,19 +293,15 @@ class _RLRMLBuilder:
         all_headers = list(column_headers['global_headers'])
         for index, player in enumerate(meta.player_order):
             for player_header in column_headers['player_headers']:
-                #all_headers.append(f"player {index}({player.tracker_suffix}) - {player_header}")
                 all_headers.append(f"player {index} - {player_header}")
         assert len(all_headers) == data.shape[1]
-        #print(all_headers)
-        return dict(zip(all_headers, [list(map(float, data[:,column])) for column in range(data.shape[1])]))
+        return dict(zip(all_headers, [
+            list(map(float, data[:, column])) for column in range(data.shape[1])
+        ]))
 
     def game_to_json(self, filepath, **kwargs):
         dictionary = self.game_to_dictionary(filepath, **kwargs)
         p1list, p2list = self.mmr_plot_to_json(filepath)
-        #print(len(p1list))
-        #print(len(p2list))
-        #print(p1list[:5])
-        #print(p2list[:5])
         dictionary['player 1 - mmr'] = p1list
         dictionary['player 2 - mmr'] = p2list
         return json.dumps(dictionary)
@@ -328,7 +322,6 @@ class _RLRMLBuilder:
         ]
         p1list = [mmr[0] for mmr in python_history]
         p2list = [mmr[1] for mmr in python_history]
-        #print(python_history[0])
         return p1list, p2list
 
     @functools.cached_property
@@ -550,7 +543,7 @@ def manual_override(builder: _RLRMLBuilder):
 
 
 @_RLRMLBuilder.with_default
-def delete_if_less_than(builder:  _RLRMLBuilder):
+def delete_if_less_than(builder: _RLRMLBuilder):
     deleted = 0
     fine = 0
     for uuid, tensor, labels in builder.torch_dataset.iter_with_uuid():
@@ -577,4 +570,3 @@ def game_to_json(builder: _RLRMLBuilder):
         builder._args.src_filepath, builder._args.dest_filepath,
         fps=30, global_feature_adders=["BallRigidBodyNoVelocities", "SecondsRemaining"]
     )
-    #builder.mmr_plot_to_json(builder._args.src_filepath, builder._args.dest_filepath);
