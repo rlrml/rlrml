@@ -2,6 +2,8 @@ import boxcars_py
 import datetime
 import os
 
+from collections import deque
+
 from . import player_cache as pc
 from . import _replay_meta
 
@@ -82,6 +84,20 @@ def segment_list(input_list, k):
 
     for i in range(0, len(input_list), k):
         yield input_list[i:i + k]
+
+
+def nwise(iterable, n=2):
+    # Initialize a sliding window deque with max length n
+    it = iter(iterable)
+    d = deque((next(it, None) for _ in range(n)), maxlen=n)
+    # Check if the deque has None (happens when the iterable is shorter than n)
+    if None in d:
+        raise ValueError("Iterable is shorter than the sliding window length")
+    yield tuple(d)
+    # Slide the window over the rest of the iterator
+    for elem in it:
+        d.append(elem)
+        yield tuple(d)
 
 
 class HorribleHackScaler:
