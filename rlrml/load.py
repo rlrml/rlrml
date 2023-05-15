@@ -1,10 +1,10 @@
 """Load replays into memory into a format that can be used with torch."""
 import abc
+import boxcars_py
 import json
 import logging
 import os
 import torch
-import boxcars_py
 
 from pathlib import Path
 from torch.utils.data import Dataset
@@ -175,12 +175,14 @@ class DirectoryReplaySet(ReplaySet):
 
     def __init__(
             self, filepath, replay_extension="replay", boxcar_frames_arguments=None,
+            tensor_transformer=lambda meta, t: t
     ):
         self._filepath = filepath
         self._replay_extension = replay_extension
         self._replay_id_paths = list(self._get_replay_ids())
         self._replay_path_dict = dict(self._replay_id_paths)
         self._boxcar_frames_arguments = boxcar_frames_arguments or {}
+        self._tensor_transformer = tensor_transformer
 
     def _get_replay_ids(self):
         return util.get_replay_uuids_in_directory(
@@ -197,12 +199,11 @@ class DirectoryReplaySet(ReplaySet):
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player order associated with the provided uuid."""
         replay_path = self.replay_path(uuid)
-        logger.info(f"Loading replay from {replay_path}")
         replay_meta, np_array = boxcars_py.get_ndarray_with_info_from_replay_filepath(
             replay_path, **self._boxcar_frames_arguments
         )
         return (
-            torch.as_tensor(np_array),
+            self._tensor_transformer(torch.as_tensor(np_array)),
             ReplayMeta.from_boxcar_frames_meta(replay_meta['replay_meta']),
         )
 

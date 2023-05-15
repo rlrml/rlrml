@@ -2,6 +2,8 @@ import torch
 import logging
 import numpy as np
 
+from scipy import stats
+
 from . import load
 from . import build
 
@@ -37,7 +39,8 @@ class WeightedByMSELoss(torch.nn.Module):
                     "Can not call WeightedByMSELoss with no weights without setting weight_by."
                 )
             weights = torch.tensor(
-                [self._weight_by(actual) for actual in target], dtype=torch.float32
+                [self._weight_by(actual, prediction) for actual, prediction in zip(target, inputs)],
+                dtype=torch.float32
             )
             weights = torch.stack([weights, weights]).T
 
@@ -60,18 +63,33 @@ class WeightedByMSELoss(torch.nn.Module):
 
 
 def create_weight_function(
-        target_distance, target_weight, min_weight=1.0, max_weight=5.0,
+        target_distance, target_weight, min_weight=1.0, max_weight=8.0, use_tau=False
 ):
     scaling_factor = 2 * float(target_weight) / target_distance
 
     # Define the function to calculate weights
-    def calculate_weights(labels):
+    def calculate_weights(labels, prediction):
         # Calculate the mean absolute deviation of the labels
         labels = list(labels.cpu())
+        prediction = list(prediction.cpu())
         mean = np.mean(labels, axis=0)
         mad = np.mean(np.abs(labels - mean), axis=0)
 
-        weight = scaling_factor * mad
+        if use_tau:
+            # Convert the regression values into rank-based permutations
+            labels_rank = stats.rankdata(labels)
+            predictions_rank = stats.rankdata(prediction)
+
+            # Calculate the tau distance between the labels and predictions
+            tau, _ = stats.kendalltau(labels_rank, predictions_rank)
+
+            # Scale the tau distance to be in the range [0, 1]
+            tau = 0.5 * (tau + 1)
+        else:
+            tau = 0
+
+        # Incorporate the tau distance into the weight calculation
+        weight = scaling_factor * mad * (1 + tau)
 
         # Clip the weights to the range [min_weight, max_weight]
         weight = np.clip(weight, min_weight, max_weight)
@@ -92,16 +110,18 @@ class ReplayModelManager:
     def __init__(
             self, model, data_loader: torch.utils.data.DataLoader,
             use_cuda=None, on_epoch_start=log_epoch_start,
-            on_epoch_finish=log_batch_finish, loss_function=None,
+            on_epoch_finish=log_batch_finish, loss_function=None, accumulation_steps=4,
+            lr=.001
     ):
         use_cuda = torch.cuda.is_available() if use_cuda is None else use_cuda
         self._device = torch.device("cuda" if use_cuda else "cpu")
         self._model = model.to(self._device)
         self._data_loader = data_loader
         self._loss_function = loss_function or torch.nn.MSELoss()
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=.001)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
         self._on_epoch_start = on_epoch_start
         self._on_epoch_finish = on_epoch_finish
+        self._accumulation_steps = accumulation_steps
 
     def train(self, epochs=10):
         logger.info(f"Starting training for {epochs} epochs on {self._device}")
@@ -118,10 +138,12 @@ class ReplayModelManager:
             X, y = X.to(self._device), y.to(self._device)
             y_pred = self._model(X)
             loss = self._loss_function(y_pred, y)
-            self._optimizer.zero_grad()
+            loss = loss
             loss.backward()
-            self._optimizer.step()
-            self._on_epoch_finish(self, epoch, [], loss, X, y_pred, y)
+            if (epoch + 1) % self._accumulation_steps == 0:
+                self._optimizer.step()
+                self._optimizer.zero_grad()
+                self._on_epoch_finish(self, epoch, [], loss, X, y_pred, y)
 
     def get_total_loss(self):
         losses = []

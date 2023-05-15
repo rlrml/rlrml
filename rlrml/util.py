@@ -100,16 +100,92 @@ def nwise(iterable, n=2):
         yield tuple(d)
 
 
-class HorribleHackScaler:
+class ManualLinearScaler:
 
-    @classmethod
-    def scale_no_translate(cls, value):
-        return value / 200.0
+    def __init__(self, data_min=0.0, data_max=1.0, target_min=-1.0, target_max=1.0):
+        self._data_min = data_min
+        self._data_max = data_max
+        self._target_min = target_min
+        self._target_max = target_max
+        self._data_range = self._data_max - self._data_min
+        self._target_range = self._target_max - self._target_min
 
-    @classmethod
-    def scale(cls, label):
-        return cls.scale_no_translate(label - 900.0)
+    def scale_no_translate(self, value):
+        return value * self._target_range / self._data_range
 
-    @classmethod
-    def unscale(cls, label):
-        return label * 200.0 + 900.0
+    def scale(self, value):
+        proportion_to_max = (value - self._data_min) / (self._data_range)
+        return proportion_to_max * self._target_range + self._target_min
+
+    def unscale(self, value):
+        # Apply the inverse operations in reverse order
+        unscaled_value = value - self._target_min
+        unscaled_value /= self._target_range
+        unscaled_value *= self._data_range
+        unscaled_value += self._data_min
+
+        return unscaled_value
+
+    def scale_column_in_place(self, matrix, column_index):
+        matrix[:, column_index] -= self._data_min
+        matrix[:, column_index] /= self._data_range
+        matrix[:, column_index] *= self._target_range
+        matrix[:, column_index] += self._target_min
+
+    def unscale_column_in_place(self, matrix, column_index):
+        matrix[:, column_index] -= self._target_min
+        matrix[:, column_index] /= self._target_range
+        matrix[:, column_index] *= self._data_range
+        matrix[:, column_index] += self._data_min
+
+
+class RatioScaler:
+
+    def __init__(self, ratio=2.0):
+        self._ratio = ratio
+
+    def scale(self, value):
+        proportion_to_max = (value - self._data_min) / (self._data_range)
+        return proportion_to_max * self._target_range + self._target_min
+
+    def unscale(self, value):
+        return value / self._ratio
+
+    def scale_column_in_place(self, matrix, column_index):
+        matrix[:, column_index] *= self._ratio
+
+    def unscale_column_in_place(self, matrix, column_index):
+        matrix[:, column_index] /= self._ratio
+
+    scale_no_translate = scale
+
+
+default_position_scaler = RatioScaler(ratio=1.0 / 600.0)
+
+
+class ReplayPositionRescaler:
+
+    def __init__(self, column_headers, playlist, scaler=default_position_scaler):
+        self._header_indices = [
+            h[0] for h in enumerate(column_headers['global_headers']) if 'position' in h[1]
+        ]
+        player_indices = [
+            h[0] for h in enumerate(column_headers['player_headers']) if 'position' in h[1]
+        ]
+        global_header_count = len(column_headers['global_headers'])
+        player_header_count = len(column_headers['player_headers'])
+        all_player_indices = [
+            i + p * player_header_count + global_header_count
+            for p in range(playlist.player_count)
+            for i in player_indices
+        ]
+        self._header_indices += all_player_indices
+        self._scaler = scaler
+
+    def scale_position_columns(self, tensor):
+        for i in self._header_indices:
+            self._scaler.scale_column_in_place(tensor, i)
+        return tensor
+
+
+HorribleHackScaler = ManualLinearScaler(300.0, 1800.0, -3.0, 4.5)

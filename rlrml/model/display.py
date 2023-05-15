@@ -18,9 +18,9 @@ class TrainLiveStatsDisplay:
         table.add_column(f"Last {self._last_n} Loss")
         table.add_column(f"Penultimate {self._last_n} Loss")
         table.add_column("Improvement")
-        table.add_column("Last 100 Loss")
+        table.add_column("Prediction")
+        table.add_column("Actual")
 
-        last_one_hundred = self._losses[-100:]
         last = self._losses[-self._last_n:]
         last_mean = np.mean(last)
         penultimate = self._losses[-2 * self._last_n: -self._last_n]
@@ -29,8 +29,9 @@ class TrainLiveStatsDisplay:
             f"{self._losses[-1]:.5f}",
             f"{last_mean:.5f}",
             f"{np.mean(penultimate):.5f}",
-            f"{np.mean(penultimate) - last_mean:.5f}"
-            f"{np.mean(last_one_hundred):.5f}",
+            f"{np.mean(penultimate) - last_mean:.5f}",
+            f"{[float(i) for i in self._scaler.unscale(y_pred[0])]}",
+            f"{[float(i) for i in self._scaler.unscale(y[0])]}",
         )
         return table
 

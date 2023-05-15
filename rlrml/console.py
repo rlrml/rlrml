@@ -98,6 +98,10 @@ def _add_rlrml_args(parser=None):
         default=False
     )
     parser.add_argument(
+        '--scale-positions',
+        default=True,
+    )
+    parser.add_argument(
         '--model-path',
         help="The path from which to load a model",
         default=defaults.get('model-path')
@@ -112,7 +116,12 @@ def _add_rlrml_args(parser=None):
     parser.add_argument(
         '--lstm-width',
         type=int,
-        default=512
+        default=768,
+    )
+    parser.add_argument(
+        '--lstm-depth',
+        type=int,
+        default=3,
     )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
@@ -169,6 +178,10 @@ class _RLRMLBuilder:
     @functools.cached_property
     def label_scaler(self):
         return util.HorribleHackScaler
+
+    @functools.cached_property
+    def position_scaler(self):
+        return util.ReplayPositionRescaler(self.header_info, self.playlist)
 
     @functools.cached_property
     def vpn_cycle_status_codes(self):
@@ -249,6 +262,7 @@ class _RLRMLBuilder:
         return load.DirectoryReplaySet.cached(
             self._args.tensor_cache, self._args.replay_path,
             boxcar_frames_arguments=self._args.bcf_args,
+            tensor_transformer=self.position_scaler.scale_position_columns
         )
 
     @functools.cached_property
@@ -336,8 +350,10 @@ class _RLRMLBuilder:
     def model(self):
         model = build.ReplayModel(
             self.header_info, self.playlist, lstm_width=self._args.lstm_width,
+            lstm_depth=self._args.lstm_depth
         )
         if self._args.model_path and os.path.exists(self._args.model_path):
+            logger.info(f"Loading model path from {self._args.model_path}")
             model.load_state_dict(torch.load(self._args.model_path, map_location=self.device))
         model.to(self.device)
         return model
@@ -472,7 +488,7 @@ def get_player(builder: _RLRMLBuilder):
     print(builder.lookup_label(player, datetime.date.today()))
 
 
-@_RLRMLBuilder.add_args('iterations')
+@_RLRMLBuilder.with_default
 def train_model(builder: _RLRMLBuilder):
     import rich.live
     from .model import display
@@ -486,7 +502,6 @@ def train_model(builder: _RLRMLBuilder):
                 loss_function=builder.loss_function
             )
             trainer.train(*args, **kwargs)
-    do_train(int(builder._args.iterations))
     import ipdb; ipdb.set_trace()
 
 
@@ -533,6 +548,11 @@ def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
         f.write(json.dumps(results))
 
     import ipdb; ipdb.set_trace()
+
+
+@_RLRMLBuilder.with_default
+def find_largest_loss_uuids(builder: _RLRMLBuilder):
+    pass
 
 
 @_RLRMLBuilder.add_args("tracker_suffix", "mmr")
