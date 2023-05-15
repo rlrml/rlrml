@@ -12,13 +12,14 @@ class ReplayModel(nn.Module):
     def __init__(
             self, header_info, playlist: Playlist, channel_counts=None,
             dropout=.05, lstm_width=256, lstm_depth=4, use_convolutional=False,
-            evaluation_split_width=800, **kwargs
+            evaluation_start=800, evaluation_split_width=100, **kwargs
     ):
         super().__init__()
         self._input_width = util.feature_count_for(playlist, header_info)
         self._label_count = playlist.player_count
         self._lstm_width = lstm_width
         self._evaluation_split_width = evaluation_split_width
+        self._evaluation_start = evaluation_start
 
         next_layer_size = self._input_width
         if use_convolutional:
@@ -47,12 +48,17 @@ class ReplayModel(nn.Module):
     def forward(self, X):
         lstm_out = self.get_lstm_out(X)
 
+        split_start = (
+            lstm_out.shape[1] - 1
+            if self._evaluation_split_width is None
+            else self._evaluation_start
+        )
         split_width = min(
-            len(lstm_out) if self._evaluation_split_width is None
-            else self._evaluation_split_width, len(lstm_out)
+            lstm_out.shape[1] if self._evaluation_split_width is None
+            else self._evaluation_split_width, lstm_out.shape[1]
         )
 
-        out_indices = list(range(split_width - 1, len(lstm_out), split_width))
+        out_indices = list(range(split_start, lstm_out.shape[1], split_width))
 
         linear_outs = self._linear(lstm_out[:, out_indices, :])
 

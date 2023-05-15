@@ -15,7 +15,7 @@ def log_epoch_start(_trainer, epoch):
     pass
 
 
-def log_batch_finish(_trainer, epoch, losses, loss, X, y_pred, y):
+def log_batch_finish(_trainer, epoch, losses, loss, X, y_pred, y, **kwargs):
     # from .. import util
     # for p, p_pred in zip(y, y_pred):
     #     for pmmr, ammr in zip(p, p_pred):
@@ -129,11 +129,10 @@ class ReplayModelManager:
         for epoch in range(epochs):
 
             try:
-                X, y = next(batch_iterator)
+                X, y, *meta = next(batch_iterator)
             except StopIteration:
                 batch_iterator = iter(self._data_loader)
-                X, y = next(batch_iterator)
-
+                X, y, *meta = next(batch_iterator)
             self._on_epoch_start(self, epoch)
             X, y = X.to(self._device), y.to(self._device)
             y_pred = self._model(X)
@@ -143,7 +142,9 @@ class ReplayModelManager:
             if (epoch + 1) % self._accumulation_steps == 0:
                 self._optimizer.step()
                 self._optimizer.zero_grad()
-                self._on_epoch_finish(self, epoch, [], loss, X, y_pred, y)
+                self._on_epoch_finish(
+                    trainer=self, epoch=epoch, loss=loss, X=X, y_pred=y_pred, y=y, meta=meta
+                )
 
     def get_total_loss(self):
         losses = []
@@ -154,7 +155,9 @@ class ReplayModelManager:
             loss = self._loss_function(y_pred, y)
             loss = float(loss)
             losses.append((loss, len(y)))
-            self._on_epoch_finish(self, batch_number, losses, loss, X, y_pred, y)
+            self._on_epoch_finish(
+                trainer=self, epoch=batch_number, losses=losses, loss=loss, X=X, y_pred=y_pred, y=y
+            )
 
         total_samples_counted = sum(count for _, count in losses)
         weighted_loss = sum(loss * count for loss, count in losses) / total_samples_counted

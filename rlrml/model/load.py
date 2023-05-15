@@ -11,10 +11,11 @@ def batched_packed_loader(dataset, *args, **kwargs) -> torch.utils.data.DataLoad
 
 def collate_variable_size_samples(samples, truncate_to=4000):
     padded = torch.nn.utils.rnn.pad_sequence(
-        # XXX: Remove gross hack
         (s[0][:truncate_to] for s in samples), batch_first=True
     )
 
-    arg = list(zip(padded, [s[1] for s in samples]))
-    result = torch.utils.data.default_collate(arg)
+    zip_args = [padded]
+    for i in range(1, len(samples[0])):
+        zip_args.append([s[i] for s in samples])
+    result = torch.utils.data.default_collate(list(zip(*zip_args)))
     return result

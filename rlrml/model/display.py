@@ -11,7 +11,7 @@ class TrainLiveStatsDisplay:
         self._scaler = scaler or util.HorribleHackScaler
         self._last_n = last_n
 
-    def _build_table(self, epoch, y_pred, y):
+    def _build_table(self, epoch, y_pred, y, meta):
         table = rich.table.Table()
         table.add_column("Epoch")
         table.add_column("Loss")
@@ -20,6 +20,7 @@ class TrainLiveStatsDisplay:
         table.add_column("Improvement")
         table.add_column("Prediction")
         table.add_column("Actual")
+        table.add_column("UUID")
 
         last = self._losses[-self._last_n:]
         last_mean = np.mean(last)
@@ -32,9 +33,10 @@ class TrainLiveStatsDisplay:
             f"{np.mean(penultimate) - last_mean:.5f}",
             f"{[float(i) for i in self._scaler.unscale(y_pred[0])]}",
             f"{[float(i) for i in self._scaler.unscale(y[0])]}",
+            f"{meta[0][0]}"
         )
         return table
 
-    def on_epoch_finish(self, trainer, epoch, _losses, loss, X, y_pred, y):
+    def on_epoch_finish(self, loss, epoch, y_pred, y, meta, **kwargs):
         self._losses.append(float(loss))
-        self._live.update(self._build_table(epoch, y_pred, y), refresh=True)
+        self._live.update(self._build_table(epoch, y_pred, y, meta), refresh=True)
