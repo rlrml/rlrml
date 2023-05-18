@@ -1,5 +1,9 @@
+import asyncio
+import multiprocessing
 import numpy as np
 import logging
+
+from concurrent.futures import ThreadPoolExecutor
 
 from .playlist import Playlist
 from . import load
@@ -41,23 +45,37 @@ class ReplaySetAssesor:
     class MetaFail(FailedStatus):
         pass
 
+    class PlaylistFail(FailedStatus):
+        pass
+
     def __init__(
             self, replay_set: load.ReplaySet, scorer,
-            playlist=Playlist.DOUBLES, ignore_known_errors=True
+            playlist=Playlist.DOUBLES, ignore_known_errors=True, load_tensors=False,
+            parallel=False
     ):
         self._replay_set = replay_set
         self._scorer = scorer
         self._playlist = Playlist(playlist)
         self._ignore_known_errors = ignore_known_errors
+        self._load_tensors = load_tensors
+        self._tensor_load = self._actually_synchronous_load
 
-    def get_replay_statuses(self, load_tensor=True):
-        return {
-            uuid: self._get_replay_status(uuid, load_tensor=load_tensor)
-            for uuid in self._replay_set.get_replay_uuids()
-        }
+    async def _actually_synchronous_load(self, uuid):
+        return self._replay_set.get_replay_tensor(uuid)
 
-    def get_replay_statuses_by_rank(self, load_tensor=True):
-        replay_statuses = self.get_replay_statuses(load_tensor=load_tensor)
+    def get_replay_statuses(self):
+        return asyncio.run(self._get_replay_statuses())
+
+    async def _get_replay_statuses(self):
+        parallel_loader = ParallelTensorMetaLoader(self._replay_set)
+        self._tensor_load = parallel_loader.load_replay_tensor
+        uuids = self._replay_set.get_replay_uuids()
+        results = await asyncio.gather(*[self._get_replay_status(uuid) for uuid in uuids])
+        self._tensor_load = self._actually_synchronous_load
+        return dict(zip(uuids, results))
+
+    def get_replay_statuses_by_rank(self):
+        replay_statuses = self.get_replay_statuses()
         results = {"Failed": {}}
         for rank in mmr.rank_number_to_name.values():
             results[rank] = {}
@@ -102,7 +120,8 @@ class ReplaySetAssesor:
         "Replay is corrupt",
         "Could not decode replay content data at offset",
         "Could not decode replay header data",
-        "Could not find actor for"
+        "Could not find actor for",
+        "Car actor for player"
     ]
 
     def _should_reraise(self, e):
@@ -116,11 +135,12 @@ class ReplaySetAssesor:
                     return False
         return True
 
-    def _get_replay_status(self, uuid, load_tensor=True, require_headers=True):
+    async def _get_replay_status(self, uuid, require_headers=True):
+        logger.info(f"Getting status for {uuid}")
         meta = None
         if (
                 isinstance(self._replay_set, load.CachedReplaySet) and not
-                load_tensor and self._replay_set.is_cached(uuid)
+                self._load_tensors and self._replay_set.is_cached(uuid)
         ):
             meta = self._replay_set.get_replay_meta(uuid)
             if require_headers and not meta.headers:
@@ -129,13 +149,16 @@ class ReplaySetAssesor:
 
         if meta is None:
             try:
-                _, meta = self._replay_set.get_replay_tensor(uuid)
+                _, meta = await self._tensor_load(uuid)
             except Exception as e:
                 logger.warn(f"Tensor load failure for {uuid}, {e}")
                 if self._should_reraise(e):
                     raise e
                 else:
                     return self.TensorFail(e)
+
+        if meta.playlist != self._playlist:
+            return self.PlaylistFail(Exception("Wrong playlist"))
 
         score_info = self._scorer.score_replay_meta(meta, playlist=self._playlist)
         score, estimates, scores = score_info
@@ -155,3 +178,39 @@ def get_passed_stats(statuses_by_rank):
         rank: len(statuses)
         for rank, statuses in statuses_by_rank.items()
     }
+
+
+class ParallelTensorMetaLoader:
+
+    @classmethod
+    def load_all(cls, replay_set):
+        return asyncio.run(cls._load_all(replay_set))
+
+    @classmethod
+    async def _load_all(cls, replay_set):
+        return await cls(replay_set).load_all_tensors()
+
+    def __init__(self, replay_set, executor=None, loop=None):
+        logger.info(f"Cpu count: {multiprocessing.cpu_count()}")
+        self._executor = ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
+        self._replay_set = replay_set
+        self._loop = loop or asyncio.get_running_loop()
+
+    def load_replay_tensor(self, uuid):
+        return self._loop.run_in_executor(
+            self._executor, self._replay_set.get_replay_tensor, uuid
+        )
+
+    async def call_load_replay_tensor(self, uuid):
+        try:
+            logger.info(f"Loading {uuid}")
+            await self.load_replay_tensor(uuid)
+            logger.info(f"Done {uuid}")
+        except Exception as e:
+            logger.warn(f"Exception loading tensor {e}")
+        return
+
+    async def load_all_tensors(self):
+        uuids = self._replay_set.get_replay_uuids()
+        await asyncio.gather(*[self.call_load_replay_tensor(uuid) for uuid in uuids])
+        return
