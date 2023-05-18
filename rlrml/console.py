@@ -11,6 +11,7 @@ import requests
 import torch
 import json
 import xdg_base_dirs
+import numpy as np
 
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from . import tracker_network
 from . import util
 from . import vpn
 from . import _replay_meta
-from .assess import ReplaySetAssesor
+from . import assess
 from .model import train, build
 from .playlist import Playlist
 
@@ -172,8 +173,8 @@ class _RLRMLBuilder:
         return cls(_add_rlrml_args().parse_args())
 
     def __init__(self, args):
-        self._args = args
-        logger.info(f"Runnign with {self._args}")
+        self.args = args
+        logger.info(f"Runnign with {self.args}")
 
     @functools.cached_property
     def label_scaler(self):
@@ -189,7 +190,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def player_cache(self):
-        return pc.PlayerCache(str(self._args.player_cache))
+        return pc.PlayerCache(str(self.args.player_cache))
 
     @functools.cached_property
     def cached_get_player_data(self):
@@ -218,7 +219,7 @@ class _RLRMLBuilder:
     @functools.cached_property
     def tracker_network_cloud_scraper(self):
         return tracker_network.CloudScraperTrackerNetwork(
-            proxy_uris=self._args.socks_proxy_urls
+            proxy_uris=self.args.socks_proxy_urls
         )
 
     @functools.cached_property
@@ -227,14 +228,14 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def network_get_player_data(self):
-        if self._args.cycle_vpn:
+        if self.args.cycle_vpn:
             return self.vpn_cycled_get_player_data
         else:
             return tracker_network.get_player_data_with_429_retry()
 
     @functools.cached_property
     def playlist(self):
-        return Playlist.from_string_or_number(self._args.playlist)
+        return Playlist.from_string_or_number(self.args.playlist)
 
     @functools.cached_property
     def vpn_cycler(self):
@@ -260,8 +261,8 @@ class _RLRMLBuilder:
     @functools.cached_property
     def cached_directory_replay_set(self):
         return load.DirectoryReplaySet.cached(
-            self._args.tensor_cache, self._args.replay_path,
-            boxcar_frames_arguments=self._args.bcf_args,
+            self.args.tensor_cache, self.args.replay_path,
+            boxcar_frames_arguments=self.args.bcf_args,
             tensor_transformer=self.position_scaler.scale_position_columns
         )
 
@@ -279,13 +280,13 @@ class _RLRMLBuilder:
     def torch_dataset(self):
         return load.ReplayDataset(
             self.cached_directory_replay_set, self.lookup_label,
-            self.playlist, self.header_info, preload=self._args.preload,
+            self.playlist, self.header_info, preload=self.args.preload,
             label_scaler=self.label_scaler
         )
 
     @functools.cached_property
     def header_info(self):
-        headers_args = dict(self._args.bcf_args)
+        headers_args = dict(self.args.bcf_args)
         if 'fps' in headers_args:
             del headers_args['fps']
         return boxcars_py.get_column_headers(**headers_args)
@@ -293,11 +294,12 @@ class _RLRMLBuilder:
     @functools.cached_property
     def load_game_from_filepath(self):
         def _load_game_from_filepath(filepath, **kwargs):
-            call_kwargs = dict(self._args.bcf_args)
+            call_kwargs = dict(self.args.bcf_args)
             call_kwargs.update(kwargs)
-            return boxcars_py.get_ndarray_with_info_from_replay_filepath(
+            meta, tensor = boxcars_py.get_ndarray_with_info_from_replay_filepath(
                 filepath, **call_kwargs
             )
+            return meta, self.position_scaler.scale_position_columns(tensor)
         return _load_game_from_filepath
 
     def game_to_dictionary(self, filepath, **kwargs):
@@ -349,29 +351,29 @@ class _RLRMLBuilder:
     @functools.cached_property
     def model(self):
         model = build.ReplayModel(
-            self.header_info, self.playlist, lstm_width=self._args.lstm_width,
-            lstm_depth=self._args.lstm_depth
+            self.header_info, self.playlist, lstm_width=self.args.lstm_width,
+            lstm_depth=self.args.lstm_depth
         )
-        if self._args.model_path and os.path.exists(self._args.model_path):
-            logger.info(f"Loading model path from {self._args.model_path}")
-            model.load_state_dict(torch.load(self._args.model_path, map_location=self.device))
+        if self.args.model_path and os.path.exists(self.args.model_path):
+            logger.info(f"Loading model path from {self.args.model_path}")
+            model.load_state_dict(torch.load(self.args.model_path, map_location=self.device))
         model.to(self.device)
         return model
 
     @functools.cached_property
     def device(self):
-        return torch.device('cpu')
+        return torch.device('cuda')
 
     @functools.cached_property
     def ballchasing_requests_session(self):
         session = requests.Session()
-        session.headers.update(Authorization=self._args.ballchasing_token)
+        session.headers.update(Authorization=self.args.ballchasing_token)
         return session
 
     @functools.cached_property
     def uuid_to_path(self):
         return dict(util.get_replay_uuids_in_directory(
-            self._args.replay_path
+            self.args.replay_path
         ))
 
     def get_game_filepath_by_uuid(self, uuid):
@@ -388,7 +390,7 @@ class _RLRMLBuilder:
         response = self.ballchasing_requests_session.get(
             f"https://ballchasing.com/api/replays/{uuid}/file",
         )
-        target_file = os.path.join(self._args.replay_path, "temp", f"{uuid}.replay")
+        target_file = os.path.join(self.args.replay_path, "temp", f"{uuid}.replay")
         with open(target_file, 'wb') as f:
             f.write(response.content)
         return target_file
@@ -403,7 +405,7 @@ class _RLRMLBuilder:
 @_RLRMLBuilder.with_default
 def load_game_dataset(builder: _RLRMLBuilder):
     """Convert the game provided through sys.argv."""
-    assesor = ReplaySetAssesor(
+    assesor = assess.ReplaySetAssesor(
         builder.cached_directory_replay_set,
         scorer=builder.player_mmr_estimate_scorer,
         playlist=builder.playlist
@@ -412,23 +414,22 @@ def load_game_dataset(builder: _RLRMLBuilder):
     import ipdb; ipdb.set_trace()
 
 
-def create_symlink_replay_directory():
-    parser = _add_rlrml_args()
-    parser.add_argument('--count', type=int, default=1000)
-    parser.add_argument('target_directory')
-    args = parser.parse_args()
-    builder = _RLRMLBuilder(args)
-
-    assesor = ReplaySetAssesor(
+@_RLRMLBuilder.add_args("target_directory")
+def create_symlink_replay_directory(builder):
+    # assess.ParallelTensorMetaLoader.load_all(builder.cached_directory_replay_set)
+    assesor = assess.ReplaySetAssesor(
         builder.cached_directory_replay_set,
         scorer=builder.player_mmr_estimate_scorer,
         playlist=builder.playlist
     )
-    top_scoring_replays = assesor.get_top_scoring_n_replay_per_rank(args.count)
+    top_scoring_replays = assesor.get_top_scoring_n_replay_per_rank(1000)
     all_uuids = [uuid for pairs in top_scoring_replays.values() for uuid, _ in pairs]
-    util.symlink_replays(
-        args.target_directory, all_uuids, builder.cached_directory_replay_set
-    )
+    def do_symlink():
+        util.symlink_replays(
+            builder._args.target_directory, all_uuids, builder.cached_directory_replay_set
+        )
+    import ipdb; ipdb.set_trace()
+    do_symlink()
 
 
 @_RLRMLBuilder.with_default
@@ -456,8 +457,8 @@ def get_cache_answer_uuids(builder):
 @_RLRMLBuilder.add_args("uuid")
 def ballchasing_lookup(builder: _RLRMLBuilder):
     game_data = requests.get(
-        f"https://ballchasing.com/api/replays/{builder._args.uuid}",
-        headers={'Authorization': builder._args.ballchasing_token},
+        f"https://ballchasing.com/api/replays/{builder.args.uuid}",
+        headers={'Authorization': builder.args.ballchasing_token},
     ).json()
     meta = _replay_meta.ReplayMeta.from_ballchasing_game(game_data)
     for player in meta.player_order:
@@ -478,7 +479,7 @@ def socks_proxy_get(builder: _RLRMLBuilder):
 def get_player(builder: _RLRMLBuilder):
     """Get the provided player either from the cache or the tracker network."""
 
-    player = {"__tracker_suffix__": builder._args.player_key}
+    player = {"__tracker_suffix__": builder.args.player_key}
     builder.cached_get_player_data(player, force_refresh=True)
     data = builder.player_cache.get_player_data(
         player
@@ -502,13 +503,14 @@ def train_model(builder: _RLRMLBuilder):
                 loss_function=builder.loss_function
             )
             trainer.train(*args, **kwargs)
+    do_train(10)
     import ipdb; ipdb.set_trace()
 
 
 @_RLRMLBuilder.add_args("uuid")
 def apply_model(builder: _RLRMLBuilder):
     meta, ndarray = builder.load_game_from_filepath(
-        builder.get_game_filepath_by_uuid(builder._args.uuid)
+        builder.get_game_filepath_by_uuid(builder.args.uuid)
     )
     builder.model.eval()
     builder.model.to(builder.device)
@@ -521,33 +523,53 @@ def apply_model(builder: _RLRMLBuilder):
     print([builder.lookup_label(player, meta.datetime.date()) for player in meta.player_order])
 
 
+def prediction_fake(builder):
+    uuid = "907f4997-3e76-4ced-9104-0186f60daab9"
+    meta, ndarray = builder.load_game_from_filepath(
+        builder.get_game_filepath_by_uuid(uuid)
+    )
+    builder.model.eval()
+    x = torch.stack([torch.tensor(ndarray)]).to(builder.device)
+    # history = builder.model.prediction_history(x)
+    builder.model(x)
+    import ipdb; ipdb.set_trace()
+
+
 @_RLRMLBuilder.with_default
 def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
-    builder.model.eval()
+    from .model.load import batched_packed_loader
     results = []
-    for uuid, tensor, labels in builder.torch_dataset.iter_with_uuid():
-        tensor = tensor.to(builder.device)
-        labels = torch.stack([labels]).to(builder.device)
-        predicted = builder.model(torch.stack([tensor]))
-        values = (
-            uuid,
-            [float(f) for f in predicted[0]],
-            [float(f) for f in labels[0]],
-            float(torch.nn.functional.l1_loss(predicted, labels))
-        )
-        print(values)
-        results.append(values)
+    loss_fn = torch.nn.L1Loss(reduction='none')
 
-    def get_l1_loss(values):
-        _, predicted, labels, loss = values
-        return loss
+    def unscale(values):
+        return [builder.label_scaler.unscale(v) for v in values]
 
-    results.sort(key=get_l1_loss, reverse=True)
+    builder.model.eval()
+
+    for X, y, uuids in batched_packed_loader(builder.torch_dataset, batch_size=16):
+        print("Next Batch")
+        X = X.to(builder.device)
+        y = y.to(builder.device)
+        y_pred = builder.model(X)
+        unscaled_y = builder.label_scaler.unscale(y)
+        unscaled_y_pred = builder.label_scaler.unscale(y_pred)
+        losses = loss_fn(unscaled_y_pred, unscaled_y)
+        results.extend(zip(
+            uuids,
+            unscaled_y.tolist(),
+            unscaled_y_pred.tolist(),
+            losses.tolist(),
+            map(np.mean, losses.tolist()),
+        ))
+
+    results.sort(key=lambda v: v[4])
+
+    def save_results(filename='./loss.json'):
+        with open(filename, 'w') as f:
+            f.write(json.dumps(results))
+
     import ipdb; ipdb.set_trace()
-    with open('./loss.json', 'w') as f:
-        f.write(json.dumps(results))
 
-    import ipdb; ipdb.set_trace()
 
 
 @_RLRMLBuilder.with_default
@@ -558,7 +580,7 @@ def find_largest_loss_uuids(builder: _RLRMLBuilder):
 @_RLRMLBuilder.add_args("tracker_suffix", "mmr")
 def manual_override(builder: _RLRMLBuilder):
     builder.player_cache.insert_manual_override(
-        {"__tracker_suffix__": builder._args.tracker_suffix}, builder._args.mmr
+        {"__tracker_suffix__": builder.args.tracker_suffix}, builder.args.mmr
     )
 
 
@@ -580,13 +602,16 @@ def delete_if_less_than(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.add_args("game_uuid")
 def score_game(builder: _RLRMLBuilder):
-    meta = builder.cached_directory_replay_set.get_replay_meta(builder._args.game_uuid)
+    meta = builder.cached_directory_replay_set.get_replay_meta(builder.args.game_uuid)
     builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
+    builder.model.eval()
+    builder.cached_directory_replay_set(builder.args.game_uuid)
+    builder.model()
 
 
 @_RLRMLBuilder.add_args("src_filepath", "dest_filepath")
 def game_to_json(builder: _RLRMLBuilder):
     builder.write_game_json_to_file(
-        builder._args.src_filepath, builder._args.dest_filepath,
+        builder.args.src_filepath, builder.args.dest_filepath,
         fps=30, global_feature_adders=["BallRigidBodyNoVelocities", "SecondsRemaining"]
     )
