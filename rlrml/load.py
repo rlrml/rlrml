@@ -40,6 +40,11 @@ class ReplaySet(abc.ABC):
         """Get the replay tensor and player order associated with the provided uuid."""
         pass
 
+    @abc.abstractmethod
+    def get_replay_meta(self, uuid) -> ReplayMeta:
+        """Get the replay tensor and player order associated with the provided uuid."""
+        pass
+
 
 class CachedReplaySet(ReplaySet):
     """Wrapper for a replay set that caches the tensors that are provided by `get_replay_tensor`."""
@@ -146,11 +151,19 @@ class CachedReplaySet(ReplaySet):
             f.write(json.dumps(meta.to_dict()))
 
     def get_replay_meta(self, uuid) -> ReplayMeta:
-        meta_path = self._cache_path_for_replay_with_extension(uuid, self._meta_extension)
+        meta_path = self._cache_path_for_replay_with_extension(
+            uuid, self._meta_extension
+        )
         if not os.path.exists(meta_path):
-            return self.get_replay_tensor(uuid)[1]
+            meta = self._replay_set.get_replay_meta(uuid)
+            if meta is not None:
+                self._json_dump_meta(meta, meta_path)
+            return meta
         with open(meta_path, 'rb') as f:
-            return ReplayMeta.from_dict(json.loads(f.read()))
+            try:
+                return ReplayMeta.from_dict(json.loads(f.read()))
+            except Exception as e:
+                import ipdb; ipdb.set_trace()
 
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
         """Get the replay tensor and player meta associated with the provided uuid."""
@@ -192,6 +205,17 @@ class DirectoryReplaySet(ReplaySet):
     def replay_path(self, replay_id):
         """Get the path of the given replay id."""
         return self._replay_path_dict[replay_id]
+
+    def get_replay_meta(self, uuid):
+        kwargs = dict(self._boxcar_frames_arguments)
+        del kwargs['fps']
+        replay_meta = boxcars_py.get_replay_meta(
+            self.replay_path(uuid), **kwargs
+        )
+        try:
+            return ReplayMeta.from_boxcar_frames_meta(replay_meta['Ok']['replay_meta'])
+        except KeyError:
+            return None
 
     def get_replay_uuids(self):
         return [replay_id for replay_id, _ in self._replay_id_paths]
