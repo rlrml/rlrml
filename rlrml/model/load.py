@@ -3,7 +3,7 @@ import torch
 
 def batched_packed_loader(dataset, *args, **kwargs) -> torch.utils.data.DataLoader:
     kwargs.setdefault("pin_memory", False)
-    kwargs.setdefault("batch_size", 32)
+    kwargs.setdefault("batch_size", 16)
     kwargs.setdefault("shuffle", True)
     kwargs.setdefault("collate_fn", collate_variable_size_samples)
     return torch.utils.data.DataLoader(dataset, *args, **kwargs)

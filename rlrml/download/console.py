@@ -55,6 +55,9 @@ def run():
     parser.add_argument(
         '--sync', action='store_true', default=False
     )
+    parser.add_argument(
+        '--no-require-non-null', action='store_false', default=True, dest='require_non_null'
+    )
     args = parser.parse_args()
     builder = console._RLRMLBuilder(args)
     builder._setup_default_logging()
@@ -96,15 +99,17 @@ def run():
         return result
 
     def filter_by_disparity(replay_meta):
-        if args.min_mmr_disparity is not None:
-            if 'score_info' not in replay_meta:
-                return False
-            player_mmrs = [mmr for _, mmr in replay_meta['score_info'].estimates if mmr]
-            if player_mmrs:
-                max_mmr = max(player_mmrs)
-                min_mmr = min(player_mmrs)
-            return max_mmr - min_mmr >= args.min_mmr_disparity
-        return True
+        if args.min_mmr_disparity is None:
+            return True
+
+        if 'score_info' not in replay_meta:
+            return False
+
+        player_mmrs = [mmr for _, mmr in replay_meta['score_info'].estimates if mmr]
+        if player_mmrs:
+            max_mmr = max(player_mmrs)
+            min_mmr = min(player_mmrs)
+        return max_mmr - min_mmr >= args.min_mmr_disparity
 
     async def async_filter_by_replay_score(_, replay_meta):
         return filter_by_replay_score(replay_meta), replay_meta

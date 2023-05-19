@@ -173,7 +173,7 @@ class MMRHistoryPlotGenerator:
 
 class GameMMRPredictionPlotGenerator:
     def __init__(
-            self, prediction_history, players_with_mmr, figure=None,
+            self, prediction_history, players_with_mmr, predictions=(), figure=None,
             player_colors=('orange', 'blue')
     ):
         self._figure = figure or Figure(figsize=(10, 6), dpi=200)
@@ -181,13 +181,20 @@ class GameMMRPredictionPlotGenerator:
         self._players_with_mmr = players_with_mmr
         self._plt = self._figure.subplots()
         self._player_colors = player_colors
+        self._predictions = predictions or itertools.cycle([None])
 
     def generate(self):
-        for index, (player_color, (player, player_mmr)) in enumerate(zip(
+        for index, (player_color, (player, player_mmr), prediction) in enumerate(zip(
                 itertools.cycle(self._player_colors),
-                self._players_with_mmr
+                self._players_with_mmr,
+                self._predictions,
         )):
             self._plt.plot(self._prediction_history[:, index], color=player_color)
             self._plt.hlines(player_mmr, 0, len(self._prediction_history), color=player_color)
             self._figure.tight_layout()
+            if prediction is not None:
+                self._plt.hlines(
+                    prediction, 0, len(self._prediction_history),
+                    color=player_color, linestyles='dashed'
+                )
         return self._figure

@@ -111,10 +111,9 @@ class ReplayModelManager:
             self, model, data_loader: torch.utils.data.DataLoader,
             use_cuda=None, on_epoch_start=log_epoch_start,
             on_epoch_finish=log_batch_finish, loss_function=None, accumulation_steps=4,
-            lr=.001
+            lr=.001, device=None
     ):
-        use_cuda = torch.cuda.is_available() if use_cuda is None else use_cuda
-        self._device = torch.device("cuda" if use_cuda else "cpu")
+        self._device = device or torch.device("cuda")
         self._model = model.to(self._device)
         self._data_loader = data_loader
         self._loss_function = loss_function or torch.nn.MSELoss()

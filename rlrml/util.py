@@ -60,8 +60,7 @@ def closest_date_value(pairs, target_date):
 
 
 def symlink_replays(target_directory, replay_uuids, replay_set):
-    if not os.path.exists(target_directory):
-        os.makedirs(target_directory)
+    os.makedirs(target_directory, exist_ok=True)
     for uuid in replay_uuids:
         target_path = os.path.join(target_directory, f"{uuid}.replay")
         if not os.path.exists(target_path):

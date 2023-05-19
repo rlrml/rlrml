@@ -44,6 +44,9 @@ class ReplaySetAssesor:
     class MetaFail(FailedStatus):
         pass
 
+    class PlaylistFail(FailedStatus):
+        pass
+
     def __init__(
             self, replay_set: load.ReplaySet, scorer,
             playlist=Playlist.DOUBLES, ignore_known_errors=True
@@ -52,15 +55,16 @@ class ReplaySetAssesor:
         self._scorer = scorer
         self._playlist = Playlist(playlist)
         self._ignore_known_errors = ignore_known_errors
+        self._always_load_tensor = True
 
-    def get_replay_statuses(self, load_tensor=True):
+    def get_replay_statuses(self):
         return {
-            uuid: self._get_replay_status(uuid, load_tensor=load_tensor)
+            uuid: self._get_replay_status(uuid)
             for uuid in self._replay_set.get_replay_uuids()
         }
 
-    def get_replay_statuses_by_rank(self, load_tensor=True):
-        replay_statuses = self.get_replay_statuses(load_tensor=load_tensor)
+    def get_replay_statuses_by_rank(self):
+        replay_statuses = self.get_replay_statuses()
         results = {"Failed": {}}
         for rank in mmr.rank_number_to_name.values():
             results[rank] = {}
@@ -105,7 +109,8 @@ class ReplaySetAssesor:
         "Replay is corrupt",
         "Could not decode replay content data at offset",
         "Could not decode replay header data",
-        "Could not find actor for"
+        "Could not find actor for",
+        "Car actor for player"
     ]
 
     def _should_reraise(self, e):
@@ -117,16 +122,15 @@ class ReplaySetAssesor:
             for error_text in self.known_errors:
                 if self._ignore_known_errors and error_text in exception_text:
                     return False
-        return True
+        return False # True
 
-    def _get_replay_status(self, uuid, load_tensor=True, require_headers=True):
+    def _get_replay_status(self, uuid, require_headers=True):
         meta = None
         if (
-                isinstance(self._replay_set, load.CachedReplaySet) and not
-                load_tensor and self._replay_set.is_cached(uuid)
+                isinstance(self._replay_set, load.CachedReplaySet) and not self._always_load_tensor
         ):
             meta = self._replay_set.get_replay_meta(uuid)
-            if require_headers and not meta.headers:
+            if require_headers and meta is not None and not meta.headers:
                 self._replay_set.bust_cache(uuid)
                 meta = None
 

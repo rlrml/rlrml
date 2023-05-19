@@ -27,7 +27,7 @@ class MMREstimateScorer:
             self, get_player_data, season_dates=mmr.TIGHTENED_SEASON_DATES,
             score_game_count=scaled_sigmoid, meta_score=np.prod,
             minimum_games_for_mmr=lambda mmr: 0,
-            mmr_disparity_requires_victory_threshold=50,
+            mmr_disparity_requires_victory_threshold=75,
     ):
         self._get_player_data = get_player_data
         self._season_dates = season_dates
@@ -70,8 +70,6 @@ class MMREstimateScorer:
                 )
                 if np.sign(team_zero_score_advantage) != np.sign(team_zero_mmr_advantage):
                     meta_score = 0
-        else:
-            meta_score = 0
 
         return MetaScoreInfo(meta_score, estimates, scores)
 

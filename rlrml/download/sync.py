@@ -13,7 +13,7 @@ class SynchronousReplayDownloader:
             replay_filter=lambda x: True,
             ballchasing_base_uri="https://ballchasing.com/api/",
             all_replays_directory=None,
-            symlink_if_known=False,
+            symlink_if_known=True,
             **kwargs
     ):
         self._auth_token = auth_token
@@ -49,6 +49,7 @@ class SynchronousReplayDownloader:
         return self._session.get(uri, params=params)
 
     def download_replays(self, count):
+        os.makedirs(self._download_path, exist_ok=True)
         downloaded_count = 0
         response = self._session.get(
             self._replay_list_request_uri, params=self._replay_list_query_params
