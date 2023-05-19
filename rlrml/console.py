@@ -22,6 +22,7 @@ from . import logger
 from . import player_cache as pc
 from . import tracker_network
 from . import util
+from . import loss
 from . import vpn
 from . import _replay_meta
 from . import assess
@@ -361,10 +362,10 @@ class _RLRMLBuilder:
     def loss_function(self):
         mse = torch.nn.MSELoss(reduction="none")
 
-        def loss(y_pred, y_train):
-            return (10 * train.difference_loss(y_pred, y_train) + mse(y_pred, y_train)).mean()
+        def loss_fn(y_pred, y_train):
+            return (10 * loss.difference_loss(y_pred, y_train) + mse(y_pred, y_train)).mean()
 
-        return loss
+        return loss_fn
 
     @functools.cached_property
     def model(self):
