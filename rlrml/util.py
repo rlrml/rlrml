@@ -112,6 +112,9 @@ class ManualLinearScaler:
     def scale_no_translate(self, value):
         return value * self._target_range / self._data_range
 
+    def unscale_no_translate(self, value):
+        return value * self._data_range / self._target_range
+
     def scale(self, value):
         proportion_to_max = (value - self._data_min) / (self._data_range)
         return proportion_to_max * self._target_range + self._target_min
