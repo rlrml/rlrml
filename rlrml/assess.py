@@ -48,14 +48,15 @@ class ReplaySetAssesor:
         pass
 
     def __init__(
-            self, replay_set: load.ReplaySet, scorer,
-            playlist=Playlist.DOUBLES, ignore_known_errors=True
+            self, replay_set: load.ReplaySet, scorer, playlist=Playlist.DOUBLES,
+            ignore_known_errors=True, always_load_tensor=False, ipdb_on_exception=False,
     ):
         self._replay_set = replay_set
         self._scorer = scorer
         self._playlist = Playlist(playlist)
         self._ignore_known_errors = ignore_known_errors
-        self._always_load_tensor = True
+        self._always_load_tensor = always_load_tensor
+        self._ipdb_on_exception = ipdb_on_exception
 
     def get_replay_statuses(self):
         return {
@@ -122,7 +123,7 @@ class ReplaySetAssesor:
             for error_text in self.known_errors:
                 if self._ignore_known_errors and error_text in exception_text:
                     return False
-        return False # True
+        return True
 
     def _get_replay_status(self, uuid, require_headers=True):
         meta = None
@@ -140,6 +141,8 @@ class ReplaySetAssesor:
             except Exception as e:
                 logger.warn(f"Tensor load failure for {uuid}, {e}")
                 if self._should_reraise(e):
+                    if self._ipdb_on_exception:
+                        import ipdb; ipdb.set_trace()
                     raise e
                 else:
                     return self.TensorFail(e)
