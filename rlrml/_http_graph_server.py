@@ -41,13 +41,15 @@ def make_routes(builder):
             [builder.label_scaler.unscale(float(prediction)) for prediction in elem[0]]
             for elem in history
         ]
+        predictions = [builder.label_scaler.unscale(float(p)) for p in builder.model(x)[0]]
         meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
         figure = plot.GameMMRPredictionPlotGenerator(
             python_history,
             [
                 (player, builder.lookup_label(player, meta.datetime.date()))
                 for player in meta.player_order
-            ]
+            ],
+            predictions
         ).generate()
         elements = []
         elements.append(f"<div>{_img_from_fig(figure)}</div>")
@@ -69,7 +71,7 @@ def make_routes(builder):
 
         count = int(request.args.get("count", default=3))
         elements = []
-        for (player_key, player_data) in cache.iterator(start=target_player_key.encode('utf-8')):
+        for (player_key, player_data) in cache.iterator(start_key=target_player_key.encode('utf-8')):
             if len(elements) >= count:
                 # Cycle the player key until we have one that is actualy new.
                 if player_key == target_player_key:

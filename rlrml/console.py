@@ -124,6 +124,19 @@ def _add_rlrml_args(parser=None):
         type=int,
         default=3,
     )
+    parser.add_argument(
+        '--lmdb',
+        action='store_const',
+        const='lmbd',
+        dest='db_backend',
+        default=defaults.get('db_backend', 'lmdb'),
+    )
+    parser.add_argument(
+        '--level-db',
+        action='store_const',
+        const='leveldb',
+        dest='db_backend',
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -190,7 +203,11 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def player_cache(self):
-        return pc.PlayerCache(str(self.args.player_cache))
+        return (
+            pc.PlayerCache.plyvel
+            if self.args.db_backend == "leveldb"
+            else pc.PlayerCache.lmdb
+        )(str(self.args.player_cache))
 
     @functools.cached_property
     def cached_get_player_data(self):
@@ -426,7 +443,7 @@ def create_symlink_replay_directory(builder):
     all_uuids = [uuid for pairs in top_scoring_replays.values() for uuid, _ in pairs]
     def do_symlink():
         util.symlink_replays(
-            builder._args.target_directory, all_uuids, builder.cached_directory_replay_set
+            builder.args.target_directory, all_uuids, builder.cached_directory_replay_set
         )
     import ipdb; ipdb.set_trace()
     do_symlink()
@@ -446,9 +463,9 @@ def proxy():
 
 
 @_RLRMLBuilder.with_default
-def get_cache_answer_uuids(builder):
+def get_cache_answer_uuids(builder: _RLRMLBuilder):
     uuids = list(util.get_cache_answer_uuids_in_directory(
-        builder._args.replay_path, builder.player_cache
+        builder.args.replay_path, builder.player_cache
     ))
     print(len(uuids))
     import ipdb; ipdb.set_trace()
@@ -523,18 +540,6 @@ def apply_model(builder: _RLRMLBuilder):
     print([builder.lookup_label(player, meta.datetime.date()) for player in meta.player_order])
 
 
-def prediction_fake(builder):
-    uuid = "907f4997-3e76-4ced-9104-0186f60daab9"
-    meta, ndarray = builder.load_game_from_filepath(
-        builder.get_game_filepath_by_uuid(uuid)
-    )
-    builder.model.eval()
-    x = torch.stack([torch.tensor(ndarray)]).to(builder.device)
-    # history = builder.model.prediction_history(x)
-    builder.model(x)
-    import ipdb; ipdb.set_trace()
-
-
 @_RLRMLBuilder.with_default
 def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
     from .model.load import batched_packed_loader
@@ -605,7 +610,7 @@ def score_game(builder: _RLRMLBuilder):
     meta = builder.cached_directory_replay_set.get_replay_meta(builder.args.game_uuid)
     builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
     builder.model.eval()
-    builder.cached_directory_replay_set(builder.args.game_uuid)
+    builder.cached_directory_replay_set.get_replay_tensor()
     builder.model()
 
 
@@ -615,3 +620,14 @@ def game_to_json(builder: _RLRMLBuilder):
         builder.args.src_filepath, builder.args.dest_filepath,
         fps=30, global_feature_adders=["BallRigidBodyNoVelocities", "SecondsRemaining"]
     )
+
+
+@_RLRMLBuilder.add_args("lmdb_filepath")
+def lmdb_migrate(builder: _RLRMLBuilder):
+    lmdb_cache = pc.PlayerCache.lmdb(builder.args.lmdb_filepath)
+    migrate_cache_raw(builder.player_cache, lmdb_cache)
+
+
+def migrate_cache_raw(source_cache: pc.PlayerCache, dest_cache: pc.PlayerCache):
+    for key, value in source_cache._db.iterator():
+        dest_cache._db.put(key, value)

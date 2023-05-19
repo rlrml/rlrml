@@ -1,8 +1,10 @@
 """Caches for game and player metadata implemented with plyvel."""
+import abc
 import json
+import lmdb
 import logging
-import os
 import plyvel
+import contextlib
 
 from . import tracker_network
 from ._replay_meta import PlatformPlayer
@@ -40,19 +42,101 @@ def _use_tracker_url_suffix_as_key(player):
         return key_string.encode('utf-8')
 
 
+class DatabaseBackend(abc.ABC):
+    @abc.abstractmethod
+    def get(self, key):
+        pass
+
+    @abc.abstractmethod
+    def put(self, key, value):
+        pass
+
+    @abc.abstractmethod
+    def iterator(self):
+        pass
+
+
+class PlyvelDatabaseBackend(DatabaseBackend):
+
+    def __init__(self, filepath, dbname="player-id-"):
+        self._db = plyvel.DB(filepath, create_if_missing=True)
+        self._db = self._db.prefixed_db(dbname.encode('utf-8')) if dbname else self._db
+
+    def get(self, key):
+        return self._db.get(key)
+
+    def put(self, key, value):
+        self._db.put(key, value)
+
+    def iterator(self, start_key=None):
+        return self._db.iterator(start=start_key)
+
+
+class LMDBDatabaseBackend(DatabaseBackend):
+
+    def __init__(self, filepath, dbname="player-id", **kwargs):
+        kwargs.setdefault("max_dbs", 10)
+        kwargs.setdefault("map_size", 2 * 1024 ** 3)
+        self._env = lmdb.open(filepath, **kwargs)
+        self._db = self._env.open_db(dbname.encode('utf-8')) if dbname else self._env
+
+    def get(self, key):
+        with self._env.begin(db=self._db) as txn:
+            return txn.get(key)
+
+    def put(self, key, value):
+        with self._env.begin(db=self._db, write=True) as txn:
+            txn.put(key, value)
+
+    def iterator(self, start_key=None):
+        with self._env.begin(db=self._db) as txn:
+            cursor = txn.cursor()
+            if start_key is not None:
+                cursor.set_key(start_key)
+            for v in cursor.iternext():
+                yield v
+
+
 class PlayerCache:
     """Encapsulates the player cache."""
 
     error_key = "__error__"
     manual_override_key = "__manual_override__"
 
-    def __init__(self, filepath, key_fn=_use_tracker_url_suffix_as_key):
+    @classmethod
+    def plyvel(cls, filepath, **kwargs):
+        return cls(PlyvelDatabaseBackend(filepath))
+
+    @classmethod
+    def lmdb(cls, filepath, **kwargs):
+        return cls(LMDBDatabaseBackend(filepath), **kwargs)
+
+    def __init__(self, db_backend, key_fn=_use_tracker_url_suffix_as_key):
         """Initialize the metadata cache from a replay directory."""
-        self._filepath = filepath
-        self._db = plyvel.DB(self._filepath, create_if_missing=True)
-        self._player_error_db = self._db.prefixed_db("player-error-".encode('utf-8'))
-        self._player_id_db = self._db.prefixed_db("player-id-".encode('utf-8'))
+        self._db = db_backend
         self._key_fn = key_fn
+
+    def insert_data_for_player(self, player, data):
+        key = self._key_for_player(player)
+        if key is not None:
+            return self._db.put(key, json.dumps(data).encode('utf-8'))
+
+    def _get_data_from_key(self, key) -> dict:
+        result = self._db.get(key)
+        if result is None:
+            return None
+        value = json.loads(result.decode('utf-8'))
+        return value
+
+    def iterator(self, *args, **kwargs):
+        for key, value in self._db.iterator(*args, **kwargs):
+            yield self._decode_key(key), self._decode_value(value)
+
+    def __iter__(self):
+        for key, value in self._db.iterator():
+            yield self._decode_key(key), self._decode_value(value)
+
+    # Methods that are unaffected by db
 
     def get_player_data_no_err(self, player: PlatformPlayer):
         """Get the data of the provided player catching errors if they occur."""
@@ -70,14 +154,6 @@ class PlayerCache:
 
     def insert_manual_override(self, player: PlatformPlayer, mmr):
         self.insert_data_for_player(player, {self.manual_override_key: mmr})
-
-    def insert_data_for_player(self, player, data):
-        """Insert the provided data for given player."""
-        key = self._key_for_player(player)
-        if key is not None:
-            return self._player_id_db.put(
-                key, json.dumps(data).encode('utf-8')
-            )
 
     def insert_error_for_player(self, player, error_data):
         """Insert an error for a player."""
@@ -98,15 +174,6 @@ class PlayerCache:
         }
         return self.error_key not in data_or_error
 
-    def _get_data_from_key(self, key) -> dict:
-        result = self._player_id_db.get(key)
-        if result is None:
-            return None
-        value = self._decode_value(result)
-        # if self.error_key in value:
-        #     raise PlayerCacheStoredError(value[self.error_key])
-        return value
-
     def _key_for_player(self, player) -> bytes:
         return self._key_fn(player)
 
@@ -118,16 +185,6 @@ class PlayerCache:
 
     def _decode_value(self, value_bytes: bytes) -> int:
         return json.loads(value_bytes)
-
-    def iterator(self, *args, **kwargs):
-        """Construct an iterator using the underlying db."""
-        for key_bytes, value_bytes in self._player_id_db.iterator(*args, **kwargs):
-            yield self._decode_key(key_bytes), self._decode_value(value_bytes)
-
-    def __iter__(self):
-        """Iterate over the decoded values in the cache."""
-        for key_bytes, value_bytes in self._player_id_db.iterator():
-            yield self._decode_key(key_bytes), self._decode_value(value_bytes)
 
 
 class CachedGetPlayerData:
