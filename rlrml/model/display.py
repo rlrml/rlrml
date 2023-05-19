@@ -5,11 +5,12 @@ from .. import util
 
 class TrainLiveStatsDisplay:
 
-    def __init__(self, live, scaler=None, last_n=30):
+    def __init__(self, live, scaler=None, last_n=30, loss_transformer=np.sqrt):
         self._live = live
         self._losses = []
         self._scaler = scaler or util.HorribleHackScaler
         self._last_n = last_n
+        self._loss_transformer = loss_transformer
 
     def _build_table(self, epoch, y_pred, y, meta):
         table = rich.table.Table()
@@ -38,5 +39,7 @@ class TrainLiveStatsDisplay:
         return table
 
     def on_epoch_finish(self, loss, epoch, y_pred, y, meta, **kwargs):
-        self._losses.append(float(loss))
+        self._losses.append(self._scaler.unscale_no_translate(
+            self._loss_transformer(float(loss))
+        ))
         self._live.update(self._build_table(epoch, y_pred, y, meta), refresh=True)
