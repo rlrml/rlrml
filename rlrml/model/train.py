@@ -30,12 +30,19 @@ class WeightedByMSELoss(torch.nn.Module):
         if weights is None:
             if self._weight_by is None:
                 raise Exception(
-                    "Can not call WeightedByMSELoss with no weights without setting weight_by."
+                    "Cannot call WeightedByMSELoss with no weights without setting weight_by."
                 )
             weights = torch.tensor(
-                [self._weight_by(actual, prediction) for actual, prediction in zip(target, inputs)],
+                np.array([
+                    self._weight_by(actual, prediction)
+                    for actual, prediction in zip(target, inputs)
+                ]),
                 dtype=torch.float32
             )
+            # Normalize the weights over the entire batch so they sum to the
+            # total number of elements
+            num_elements = np.prod(weights.shape)
+            weights = num_elements * (weights / weights.sum())
 
         # Ensure that input, target, and weights have the same shape
         assert inputs.shape == target.shape == weights.shape, (
@@ -55,8 +62,42 @@ class WeightedByMSELoss(torch.nn.Module):
         return loss
 
 
+def as_weight_matrix(tensor):
+    num_elements = np.prod(tensor.shape)
+    return num_elements * (tensor / tensor.sum())
+
+
+def difference_loss(y_true, y_pred):
+    # Compute all pairwise differences - ground truth and predictions
+    y_true_diffs = y_true.unsqueeze(2) - y_true.unsqueeze(1)
+    y_pred_diffs = y_pred.unsqueeze(2) - y_pred.unsqueeze(1)
+
+    # Calculate the difference loss as the Mean Absolute Error (MAE) between
+    # actual and predicted differences
+    diff_loss = torch.mean(torch.abs(y_pred_diffs - y_true_diffs), dim=2)
+
+    return diff_loss
+
+
+def difference_weighted_mse():
+    mse = torch.nn.MSELoss(reduction="none")
+
+    def loss(y_pred, y_train):
+        weights = as_weight_matrix(difference_loss(y_pred, y_train))
+        losses = weights * mse(y_pred, y_train)
+        return losses.mean()
+
+    return loss
+
+
+def normalized_loss(left, right):
+    def loss(y_true, y_pred):
+        return left(y_true, y_pred) * right(y_true, y_pred)
+    return loss
+
+
 def create_weight_function(
-        target_distance, target_weight, min_weight=1.0, max_weight=8.0, use_tau=False
+        target_distance, target_weight, min_weight=1.0, max_weight=20.0, use_tau=False
 ):
     scaling_factor = 2 * float(target_weight) / target_distance
 
@@ -105,8 +146,8 @@ class ReplayModelManager:
     def __init__(
             self, model, data_loader: torch.utils.data.DataLoader,
             use_cuda=None, on_epoch_start=log_epoch_start,
-            on_epoch_finish=log_batch_finish, loss_function=None, accumulation_steps=4,
-            lr=.001, device=None
+            on_epoch_finish=log_batch_finish, loss_function=None, accumulation_steps=1,
+            lr=.00001, device=None
     ):
         self._device = device or torch.device("cuda")
         self._model = model.to(self._device)
