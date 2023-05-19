@@ -16,12 +16,6 @@ def log_epoch_start(_trainer, epoch):
 
 
 def log_batch_finish(_trainer, epoch, losses, loss, X, y_pred, y, **kwargs):
-    # from .. import util
-    # for p, p_pred in zip(y, y_pred):
-    #     for pmmr, ammr in zip(p, p_pred):
-    #         pmmr = util.HorribleHackScaler.unscale(float(pmmr))
-    #         ammr = util.HorribleHackScaler.unscale(float(ammr))
-    #         logger.info(f"{pmmr} - {ammr} = {pmmr - ammr}")
     logger.info(f"Epoch {epoch} finished with {loss:,}, gpu_free: {gpu_memory_remaining()}")
 
 
@@ -42,7 +36,6 @@ class WeightedByMSELoss(torch.nn.Module):
                 [self._weight_by(actual, prediction) for actual, prediction in zip(target, inputs)],
                 dtype=torch.float32
             )
-            weights = torch.stack([weights, weights]).T
 
         # Ensure that input, target, and weights have the same shape
         assert inputs.shape == target.shape == weights.shape, (
@@ -73,7 +66,7 @@ def create_weight_function(
         labels = list(labels.cpu())
         prediction = list(prediction.cpu())
         mean = np.mean(labels, axis=0)
-        mad = np.mean(np.abs(labels - mean), axis=0)
+        diff = np.abs(labels - mean)
 
         if use_tau:
             # Convert the regression values into rank-based permutations
@@ -88,13 +81,15 @@ def create_weight_function(
         else:
             tau = 0
 
+        tau_weight = (1 + tau)
+
         # Incorporate the tau distance into the weight calculation
-        weight = scaling_factor * mad * (1 + tau)
+        weights = scaling_factor * diff * tau_weight
 
         # Clip the weights to the range [min_weight, max_weight]
-        weight = np.clip(weight, min_weight, max_weight)
+        weights = np.clip(weights, min_weight, max_weight)
 
-        return weight
+        return weights
 
     return calculate_weights
 
