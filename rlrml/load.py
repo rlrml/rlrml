@@ -122,7 +122,7 @@ class CachedReplaySet(ReplaySet):
                 meta = ReplayMeta.from_dict(json.loads(f.read()))
             return tensor, meta
         elif tensor_present != meta_present:
-            logger.warn(
+            logger.debug(
                 f"{tensor_path} exists: {tensor_present} "
                 f"meta_present, {meta_path} exists: {meta_present}"
             )
@@ -292,7 +292,11 @@ class ReplayDataset(Dataset):
         if index < 0 or index > len(self._replay_ids):
             raise KeyError
         uuid = self._replay_ids[index]
-        replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
+        try:
+            replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
+        except Exception as e:
+            logger.warn(f"Hit exception {e} on {uuid}")
+            return self.get_with_uuid(index + 1)
         labels = self._get_replay_labels(uuid, meta)
 
         return replay_tensor, labels, uuid

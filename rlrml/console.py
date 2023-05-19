@@ -359,11 +359,12 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def loss_function(self):
-        scale_target = 250
-        scale_weight = 3.0
-        scale_target = self.label_scaler.scale_no_translate(scale_target)
-        weight_function = train.create_weight_function(scale_target, scale_weight)
-        return train.WeightedByMSELoss(weight_by=weight_function)
+        mse = torch.nn.MSELoss(reduction="none")
+
+        def loss(y_pred, y_train):
+            return (10 * train.difference_loss(y_pred, y_train) + mse(y_pred, y_train)).mean()
+
+        return loss
 
     @functools.cached_property
     def model(self):
@@ -544,7 +545,7 @@ def apply_model(builder: _RLRMLBuilder):
 def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
     from .model.load import batched_packed_loader
     results = []
-    loss_fn = torch.nn.L1Loss(reduction='none')
+    loss_fn = train.difference_loss
 
     def unscale(values):
         return [builder.label_scaler.unscale(v) for v in values]
@@ -576,12 +577,6 @@ def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
     import ipdb; ipdb.set_trace()
 
 
-
-@_RLRMLBuilder.with_default
-def find_largest_loss_uuids(builder: _RLRMLBuilder):
-    pass
-
-
 @_RLRMLBuilder.add_args("tracker_suffix", "mmr")
 def manual_override(builder: _RLRMLBuilder):
     builder.player_cache.insert_manual_override(
@@ -608,7 +603,9 @@ def delete_if_less_than(builder: _RLRMLBuilder):
 @_RLRMLBuilder.add_args("game_uuid")
 def score_game(builder: _RLRMLBuilder):
     meta = builder.cached_directory_replay_set.get_replay_meta(builder.args.game_uuid)
-    builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
+    score = builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
+    print(meta.player_order)
+    print(score)
     builder.model.eval()
     builder.cached_directory_replay_set.get_replay_tensor()
     builder.model()
