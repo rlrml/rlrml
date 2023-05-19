@@ -138,6 +138,16 @@ def _add_rlrml_args(parser=None):
         const='leveldb',
         dest='db_backend',
     )
+    parser.add_argument(
+        '--loss-type',
+        type=loss.LossType,
+        choices=list(loss.LossType),
+        default=loss.LossType.DIFFERENCE_AND_MSE_LOSS,
+    )
+    parser.add_argument(
+        '--loss-param', '-l', action='append', nargs=2, metavar=('PARAM', 'VALUE'),
+        help="Add loss function parameter", dest='loss_params', default={},
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -360,12 +370,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def loss_function(self):
-        mse = torch.nn.MSELoss(reduction="none")
-
-        def loss_fn(y_pred, y_train):
-            return (10 * loss.difference_loss(y_pred, y_train) + mse(y_pred, y_train)).mean()
-
-        return loss_fn
+        return self.args.loss_type.get_fn_from_args(**self.args.loss_params)
 
     @functools.cached_property
     def model(self):

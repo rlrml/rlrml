@@ -1,50 +1,109 @@
 import torch
+import enum
 import numpy as np
 
 from scipy import stats
 
 
-class WeightedByMSELoss(torch.nn.Module):
-    def __init__(self, weight_by=None):
+class LossType(enum.StrEnum):
+
+    DIFFERENCE_WEIGHTED_MSE_LOSS = enum.auto()
+    DIFFERENCE_AND_MSE_LOSS = enum.auto()
+    WEIGHTED_MSE = enum.auto()
+
+    def get_fn_from_args(self, **kwargs):
+        if self == self.WEIGHTED_MSE:
+            return WeightedLoss(weight_by=weight_by_mean_distance(**kwargs))
+        elif self == self.DIFFERENCE_AND_MSE_LOSS:
+            return difference_and_mse_loss(**kwargs)
+        elif self == self.DIFFERENCE_WEIGHTED_MSE_LOSS:
+            return WeightedLoss(weight_by=difference_loss)
+
+
+def difference_and_mse_loss(difference_scale=5.0, mse_scale=1.0):
+    difference_scale = float(difference_scale)
+    mse_scale = float(mse_scale)
+    mse = torch.nn.MSELoss(reduction="none")
+
+    def loss_fn(y_pred, y_train):
+        mse_loss = mse_scale * mse(y_pred, y_train)
+        diff_loss = difference_scale * difference_loss(y_pred, y_train)
+        return (mse_loss + diff_loss).mean()
+
+    return loss_fn
+
+
+def weight_by_mean_distance(
+        target_distance=300, target_weight=3.0, min_weight=1.0, max_weight=20.0, use_tau=False
+):
+    scaling_factor = 2 * float(target_weight) / target_distance
+
+    # Define the function to calculate weights
+    def calculate_weights(labels, predictions):
+        weights = []
+
+        # Iterate over all samples in the batch
+        for i in range(labels.size(0)):
+            # Calculate the mean absolute deviation of the labels
+            label = labels[i].cpu()
+            prediction = predictions[i].cpu()
+            mean = torch.mean(label)
+            diff = torch.abs(label - mean)
+
+            if use_tau:
+                # Convert the regression values into rank-based permutations
+                labels_rank = stats.rankdata(label.numpy())
+                predictions_rank = stats.rankdata(prediction.numpy())
+
+                # Calculate the tau distance between the labels and predictions
+                tau, _ = stats.kendalltau(labels_rank, predictions_rank)
+
+                # Scale the tau distance to be in the range [0, 1]
+                tau = 0.5 * (tau + 1)
+            else:
+                tau = 0
+
+            tau_weight = (1 + tau)
+
+            # Incorporate the tau distance into the weight calculation
+            weight = scaling_factor * diff * tau_weight
+
+            # Clip the weights to the range [min_weight, max_weight]
+            weight = torch.clamp(weight, min_weight, max_weight)
+
+            weights.append(weight)
+
+        return torch.stack(weights)
+
+    return calculate_weights
+
+
+class WeightedLoss(torch.nn.Module):
+    def __init__(
+            self,
+            weight_by=weight_by_mean_distance(),
+            loss_fn=torch.nn.MSELoss(reduction="none")
+    ):
         super().__init__()
-        self.mse_loss = torch.nn.MSELoss(reduction="none")
-        self.add_module("mse_loss", self.mse_loss)
+        self.loss_fn = loss_fn
+        self.add_module("loss", self.mse_loss)
         self._weight_by = weight_by
 
-    def forward(self, inputs, target, weights=None):
-        if weights is None:
-            if self._weight_by is None:
-                raise Exception(
-                    "Cannot call WeightedByMSELoss with no weights without setting weight_by."
-                )
-            weights = torch.tensor(
-                np.array([
-                    self._weight_by(actual, prediction)
-                    for actual, prediction in zip(target, inputs)
-                ]),
-                dtype=torch.float32
-            )
-            # Normalize the weights over the entire batch so they sum to the
-            # total number of elements
-            num_elements = np.prod(weights.shape)
-            weights = num_elements * (weights / weights.sum())
+    def forward(self, y_pred, y_true):
+        self
+        weights = as_weight_matrix(self._weight_by(y_pred, y_true))
 
         # Ensure that input, target, and weights have the same shape
-        assert inputs.shape == target.shape == weights.shape, (
+        assert y_pred.shape == y_true.shape == weights.shape, (
             "Shapes of input, target, and weights must be the same"
         )
 
-        # Compute element-wise MSE loss (without reducing)
-        mse_loss = self.mse_loss(inputs, target)
+        loss = self.loss_fn(y_pred, y_true)
 
-        weights = weights.to(mse_loss.device)
-        # Apply the weights
-        weighted_mse_loss = mse_loss * weights
+        weights = weights.to(loss.device)
+        weighted_loss = loss * weights
 
-        # Mean of the weighted MSE loss
-        loss = torch.mean(weighted_mse_loss)
-
-        return loss
+        return torch.mean(weighted_loss)
 
 
 def as_weight_matrix(tensor):
@@ -79,42 +138,3 @@ def normalized_loss(left, right):
     def loss(y_true, y_pred):
         return left(y_true, y_pred) * right(y_true, y_pred)
     return loss
-
-
-def create_weight_function(
-        target_distance, target_weight, min_weight=1.0, max_weight=20.0, use_tau=False
-):
-    scaling_factor = 2 * float(target_weight) / target_distance
-
-    # Define the function to calculate weights
-    def calculate_weights(labels, prediction):
-        # Calculate the mean absolute deviation of the labels
-        labels = list(labels.cpu())
-        prediction = list(prediction.cpu())
-        mean = np.mean(labels, axis=0)
-        diff = np.abs(labels - mean)
-
-        if use_tau:
-            # Convert the regression values into rank-based permutations
-            labels_rank = stats.rankdata(labels)
-            predictions_rank = stats.rankdata(prediction)
-
-            # Calculate the tau distance between the labels and predictions
-            tau, _ = stats.kendalltau(labels_rank, predictions_rank)
-
-            # Scale the tau distance to be in the range [0, 1]
-            tau = 0.5 * (tau + 1)
-        else:
-            tau = 0
-
-        tau_weight = (1 + tau)
-
-        # Incorporate the tau distance into the weight calculation
-        weights = scaling_factor * diff * tau_weight
-
-        # Clip the weights to the range [min_weight, max_weight]
-        weights = np.clip(weights, min_weight, max_weight)
-
-        return weights
-
-    return calculate_weights
