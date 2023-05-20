@@ -13,7 +13,7 @@ class SynchronousReplayDownloader:
             replay_filter=lambda x: True,
             ballchasing_base_uri="https://ballchasing.com/api/",
             all_replays_directory=None,
-            symlink_if_known=True,
+            symlink_if_known=False,
             **kwargs
     ):
         self._auth_token = auth_token

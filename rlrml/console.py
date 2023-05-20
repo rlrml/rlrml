@@ -130,7 +130,7 @@ def _add_rlrml_args(parser=None):
         action='store_const',
         const='lmbd',
         dest='db_backend',
-        default=defaults.get('db_backend', 'lmdb'),
+        default=defaults.get('db-backend', 'lmdb'),
     )
     parser.add_argument(
         '--level-db',
@@ -147,6 +147,11 @@ def _add_rlrml_args(parser=None):
     parser.add_argument(
         '--loss-param', '-l', action='append', nargs=2, metavar=('PARAM', 'VALUE'),
         help="Add loss function parameter", dest='loss_params', default={},
+    )
+    parser.add_argument(
+        '--mmr-required-for-all-but',
+        type=int,
+        default=defaults.get('mmr-required-for-all-but', 0)
     )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
@@ -283,7 +288,7 @@ class _RLRMLBuilder:
     @functools.cached_property
     def player_mmr_estimate_scorer(self):
         return score.MMREstimateScorer(
-            self.cached_get_player_data
+            self.cached_get_player_data, truncate_lowest_count=self.args.mmr_required_for_all_but
         )
 
     @functools.cached_property

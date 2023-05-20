@@ -58,6 +58,11 @@ def run():
     parser.add_argument(
         '--no-require-non-null', action='store_false', default=True, dest='require_non_null'
     )
+    parser.add_argument(
+        '--symlink-if-known',
+        default=False,
+        action='store_true',
+    )
     args = parser.parse_args()
     builder = console._RLRMLBuilder(args)
     builder._setup_default_logging()
@@ -77,9 +82,13 @@ def run():
         except Exception:
             return False
 
+        error_count = 0
+
         for player in meta.player_order:
             data = builder.player_cache.get_player_data(player)
             if data and '__error__' in data:
+                error_count += 1
+            if error_count > args.mmr_required_for_all_but:
                 return False
         return True
 
@@ -147,10 +156,10 @@ def run():
             replay_filter=filters.compose_sync_filters_with_reasons(
                 (filter_by_duration, "Insufficient duration"),
                 (filters.require_at_least_one_non_null_mmr, "No mmrs were non-null"),
-                (filter_by_known_miss, "Had player with known 404"),
+                (filter_by_known_miss, "Too many players with known 404"),
                 (filter_by_replay_score, "Replay score was too low"),
                 (filter_by_disparity, "Disparity wasn't high enough")
-            )
+            ), symlink_if_known=args.symlink_if_known
         ).download_replays(args.count)
     else:
         with tqdm.tqdm(total=args.count) as pbar:

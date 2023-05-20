@@ -28,6 +28,7 @@ class MMREstimateScorer:
             score_game_count=scaled_sigmoid, meta_score=np.prod,
             minimum_games_for_mmr=lambda mmr: 0,
             mmr_disparity_requires_victory_threshold=75,
+            truncate_lowest_count=0,
     ):
         self._get_player_data = get_player_data
         self._season_dates = season_dates
@@ -35,6 +36,7 @@ class MMREstimateScorer:
         self._meta_score = meta_score
         self._minimum_games_for_mmr = minimum_games_for_mmr
         self._mmr_disparity_requries_victory_threshold = mmr_disparity_requires_victory_threshold
+        self._truncate_lowest_count = truncate_lowest_count
 
     def score_replay_meta(
             self, meta: _replay_meta.ReplayMeta, abort_score=0.0,
@@ -48,16 +50,22 @@ class MMREstimateScorer:
             0: 0,
             1: 0,
         }
+
+        for player in meta.player_order:
+            estimate, score = self.score_player_mmr_estimate(
+                player, game_date, playlist=playlist
+            )
+            estimates.append((player, estimate))
+            scores.append(score)
+
+        player_lookup = dict(((player.tracker_suffix, e) for player, e in estimates))
+        mean_mmr = np.mean([e for _, e in estimates if e is not None])
         for team_index, team in enumerate((meta.team_zero, meta.team_one)):
             for player in team:
-                estimate, score = self.score_player_mmr_estimate(
-                    player, game_date, playlist=playlist
-                )
-                estimates.append((player, estimate))
-                team_to_mmr_total[team_index] += estimate or 0
-                scores.append(score)
+                team_to_mmr_total[team_index] += player_lookup[player.tracker_suffix] or mean_mmr
 
-        meta_score = self._meta_score(scores)
+        meta_scores = sorted(scores)[:-self._truncate_lowest_count]
+        meta_score = self._meta_score(meta_scores)
 
         team_zero_mmr_advantage = team_to_mmr_total[0] - team_to_mmr_total[1]
         if abs(team_zero_mmr_advantage) >= (
