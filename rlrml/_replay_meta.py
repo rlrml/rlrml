@@ -16,6 +16,7 @@ class UnknownPlatform(Exception):
 
 
 class _PlatformPlayerType(abc.ABCMeta):
+
     def __init__(self, name, bases, attrs):
         if self.platform is not None:
             self.name_to_class[self.platform] = self
@@ -30,6 +31,7 @@ class _PlatformPlayerType(abc.ABCMeta):
 
 class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     """Object representing a rocket league player."""
+
     type_attribute = "__platform_player_type__"
     name_to_class = {}
     header_name_to_class = {}
@@ -95,7 +97,8 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     def from_header_stats(cls, header_stats: dict):
         try:
             platform = header_stats['Platform']['value']
-        except:
+        except Exception as e:
+            e = e
             import ipdb; ipdb.set_trace()
         try:
             class_type = cls.header_name_to_class[platform]

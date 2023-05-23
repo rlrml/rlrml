@@ -1,5 +1,6 @@
 data/
 player_cache_donwloads/
 player_data/
+models/
 *.pyc
 *.ldb
