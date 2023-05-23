@@ -1,6 +1,7 @@
 import base64
 import logging
 import torch
+import numpy as np
 
 from io import BytesIO
 from flask import Flask, request, redirect
@@ -54,6 +55,44 @@ def make_routes(builder):
         elements = []
         elements.append(f"<div>{_img_from_fig(figure)}</div>")
         return "\n<br><br>".join(elements)
+
+    def get_magnitude(vector_dict):
+        return np.sqrt(vector_dict['x'] ** 2 + vector_dict['y'] ** 2 + vector_dict['z'] ** 2)
+
+    @app.route("/ball_stats/<uuid>")
+    def ball_stats(uuid):
+        import boxcars_py
+
+        filepath = builder.get_game_filepath_by_uuid(uuid)
+        replay_data = boxcars_py.get_replay_frames_data(filepath)
+
+        non_empty_frames = [
+            frame['Data']['rigid_body']
+            for frame in replay_data['frame_data']['ball_data']['frames']
+            if 'Data' in frame
+        ]
+
+        x_positions = [frame['location']['x'] for frame in non_empty_frames]
+        y_positions = [frame['location']['y'] for frame in non_empty_frames]
+        z_positions = [frame['location']['z'] for frame in non_empty_frames]
+        velocities = [
+            get_magnitude(frame['linear_velocity'])
+            for frame in non_empty_frames
+        ]
+
+        return {
+            'average_velocity': np.mean(velocities),
+            'max_velocity': max(velocities),
+            'average_x': np.mean(x_positions),
+            'average_y': np.mean(y_positions),
+            'average_z': np.mean(z_positions),
+            'max_x': max(x_positions),
+            'max_y': max(y_positions),
+            'max_z': max(z_positions),
+            'min_x': min(x_positions),
+            'min_y': min(y_positions),
+            'min_z': min(z_positions),
+        }
 
     @app.route("/at/<platform>/<player_name>")
     def starting_at(platform, player_name):
