@@ -51,21 +51,28 @@ class ReplayModelManager:
         for epoch in range(epochs):
 
             try:
-                X, y, *meta = next(batch_iterator)
+                training_data = next(batch_iterator)
             except StopIteration:
                 batch_iterator = iter(self._data_loader)
-                X, y, *meta = next(batch_iterator)
+                training_data = next(batch_iterator)
             self._on_epoch_start(self, epoch)
-            X, y = X.to(self._device), y.to(self._device)
+            X, y, mask = (
+                training_data.X.to(self._device),
+                training_data.y.to(self._device),
+                training_data.mask.to(self._device)
+            )
             y_pred = self._model(X)
             loss = self._loss_function(y_pred, y)
-            loss = loss
-            loss.backward()
+            masked_loss = loss * mask
+            import ipdb; ipdb.set_trace()
+            mean_loss = masked_loss.sum() / mask.sum()
+            mean_loss.backward()
             if (epoch + 1) % self._accumulation_steps == 0:
                 self._optimizer.step()
                 self._optimizer.zero_grad()
                 self._on_epoch_finish(
-                    trainer=self, epoch=epoch, loss=loss, X=X, y_pred=y_pred, y=y, meta=meta
+                    trainer=self, epoch=epoch, loss=mean_loss, X=X, y_pred=y_pred, y=y,
+                    meta=[training_data.uuids]
                 )
 
     def get_total_loss(self):

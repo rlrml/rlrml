@@ -28,7 +28,7 @@ def difference_and_mse_loss(difference_scale=5.0, mse_scale=1.0):
     def loss_fn(y_pred, y_train):
         mse_loss = mse_scale * mse(y_pred, y_train)
         diff_loss = difference_scale * difference_loss(y_pred, y_train)
-        return (mse_loss + diff_loss).mean()
+        return (mse_loss + diff_loss)
 
     return loss_fn
 
@@ -103,7 +103,7 @@ class WeightedLoss(torch.nn.Module):
         weights = weights.to(loss.device)
         weighted_loss = loss * weights
 
-        return torch.mean(weighted_loss)
+        return weighted_loss
 
 
 def as_weight_matrix(tensor):
@@ -129,7 +129,7 @@ def difference_weighted_mse():
     def loss(y_pred, y_train):
         weights = as_weight_matrix(difference_loss(y_pred, y_train))
         losses = weights * mse(y_pred, y_train)
-        return losses.mean()
+        return losses
 
     return loss
 

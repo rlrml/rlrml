@@ -1,6 +1,7 @@
 """Load replays into memory into a format that can be used with torch."""
 import abc
 import boxcars_py
+import collections
 import json
 import logging
 import os
@@ -163,6 +164,7 @@ class CachedReplaySet(ReplaySet):
             try:
                 return ReplayMeta.from_dict(json.loads(f.read()))
             except Exception as e:
+                e = e
                 import ipdb; ipdb.set_trace()
 
     def get_replay_tensor(self, uuid) -> (torch.Tensor, ReplayMeta):
@@ -235,13 +237,19 @@ class DirectoryReplaySet(ReplaySet):
         return self.get_replay_tensor(self._replay_id_paths[index][0])
 
 
+VariableLengthSequenceTensor = collections.namedtuple("VariableLengthSequenceTensor", "tensor")
+
+
+TrainingData = collections.namedtuple("TrainingData", "X y mask uuids")
+
+
 class ReplayDataset(Dataset):
     """Load data from rocket league replay files in a directory."""
 
     def __init__(
             self, replay_set: ReplaySet, lookup_label, playlist,
             header_info, label_scaler=util.HorribleHackScaler,
-            preload=False,
+            preload=False, zero_is_missing=True
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set
@@ -251,6 +259,7 @@ class ReplayDataset(Dataset):
         self._lookup_label = lookup_label
         self._label_cache = {}
         self._label_scaler = label_scaler
+        self._zero_is_missing = zero_is_missing
         if preload:
             for i in range(len(self._replay_ids)):
                 self[i]
@@ -263,19 +272,34 @@ class ReplayDataset(Dataset):
     def label_count(self):
         return self._playlist.player_count
 
+    def _label_is_missing(self, value):
+        return value is None or self._zero_is_missing and value == 0.0
+
     def _get_replay_labels(self, uuid, meta):
         try:
             return self._label_cache[uuid]
         except KeyError:
             pass
 
-        result = torch.FloatTensor([
-            self._label_scaler.scale(self._lookup_label(player, meta.datetime))
+        raw_labels = [
+            self._lookup_label(player, meta.datetime)
             for player in meta.player_order
+        ]
+
+        if len(raw_labels) != self.label_count:
+            raise Exception(f"Expected {self.label_count}, got {len(raw_labels)}")
+
+        label_tensor = torch.FloatTensor([
+            0.0 if self._label_is_missing(label) else self._label_scaler.scale(label)
+            for label in raw_labels
         ])
 
-        if len(result) != self.label_count:
-            raise Exception(f"Expected {self.label_count}, got {len(result)}")
+        mask = torch.FloatTensor([
+            0.0 if self._label_is_missing(label) else 1.0
+            for label in raw_labels
+        ])
+
+        result = (label_tensor, mask)
 
         self._label_cache[uuid] = result
         return result
@@ -297,9 +321,11 @@ class ReplayDataset(Dataset):
         except Exception as e:
             logger.warn(f"Hit exception {e} on {uuid}")
             return self.get_with_uuid(index + 1)
-        labels = self._get_replay_labels(uuid, meta)
+        labels, mask = self._get_replay_labels(uuid, meta)
 
-        return replay_tensor, labels, uuid
+        return TrainingData(
+            VariableLengthSequenceTensor(replay_tensor), labels, mask, uuid
+        )
 
     def iter_with_uuid(self):
         for i in range(len(self._replay_ids)):
@@ -310,17 +336,19 @@ def batched_packed_loader(dataset, *args, **kwargs) -> torch.utils.data.DataLoad
     kwargs.setdefault("pin_memory", False)
     kwargs.setdefault("batch_size", 64)
     kwargs.setdefault("shuffle", True)
-    kwargs.setdefault("collate_fn", collate_variable_size_samples)
+
+    truncate_to = kwargs.pop("truncate_sequences_to", 4000)
+
+    def collate_variable_length_sequence_tensor(values, **kwargs):
+        return torch.nn.utils.rnn.pad_sequence(
+            (value.tensor[:truncate_to] for value in values), batch_first=True
+        )
+
+    rlrml_collate_fn_map = dict(torch.utils.data._utils.collate.default_collate_fn_map)
+    rlrml_collate_fn_map[VariableLengthSequenceTensor] = collate_variable_length_sequence_tensor
+
+    kwargs.setdefault("collate_fn", lambda batch: torch.utils.data._utils.collate.collate(
+        batch, collate_fn_map=rlrml_collate_fn_map
+    ))
+
     return torch.utils.data.DataLoader(dataset, *args, **kwargs)
-
-
-def collate_variable_size_samples(samples, truncate_to=4000):
-    padded = torch.nn.utils.rnn.pad_sequence(
-        (s[0][:truncate_to] for s in samples), batch_first=True
-    )
-
-    zip_args = [padded]
-    for i in range(1, len(samples[0])):
-        zip_args.append([s[i] for s in samples])
-    result = torch.utils.data.default_collate(list(zip(*zip_args)))
-    return result
