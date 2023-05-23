@@ -64,7 +64,6 @@ class ReplayModelManager:
             y_pred = self._model(X)
             loss = self._loss_function(y_pred, y)
             masked_loss = loss * mask
-            import ipdb; ipdb.set_trace()
             mean_loss = masked_loss.sum() / mask.sum()
             mean_loss.backward()
             if (epoch + 1) % self._accumulation_steps == 0:
