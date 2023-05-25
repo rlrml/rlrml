@@ -27,7 +27,8 @@ class ReplayModelManager:
     @classmethod
     def from_dataset(cls, dataset, model=None, *args, **kwargs):
         model = model or build.ReplayModel(dataset.header_info, dataset.playlist)
-        data_loader = load.batched_packed_loader(dataset)
+        batch_size = kwargs.pop('batch_size')
+        data_loader = load.batched_packed_loader(dataset, batch_size=batch_size)
         return cls(model, data_loader, *args, **kwargs)
 
     def __init__(
@@ -49,44 +50,36 @@ class ReplayModelManager:
         logger.info(f"Starting training for {epochs} epochs on {self._device}")
         batch_iterator = iter(self._data_loader)
         for epoch in range(epochs):
-
             try:
                 training_data = next(batch_iterator)
             except StopIteration:
                 batch_iterator = iter(self._data_loader)
                 training_data = next(batch_iterator)
+
             self._on_epoch_start(self, epoch)
-            X, y, mask = (
-                training_data.X.to(self._device),
-                training_data.y.to(self._device),
-                training_data.mask.to(self._device)
-            )
-            y_pred = self._model(X)
-            loss = self._loss_function(y_pred, y)
-            masked_loss = loss * mask
-            mean_loss = masked_loss.sum() / mask.sum()
+            y_pred, loss = self.get_loss(training_data)
+            mean_loss = loss.sum() / training_data.mask.sum()
             mean_loss.backward()
+
             if (epoch + 1) % self._accumulation_steps == 0:
                 self._optimizer.step()
                 self._optimizer.zero_grad()
                 self._on_epoch_finish(
-                    trainer=self, epoch=epoch, loss=mean_loss, X=X, y_pred=y_pred, y=y,
-                    meta=[training_data.uuids]
+                    trainer=self, epoch=epoch, loss=mean_loss, X=training_data.X, y_pred=y_pred,
+                    y=training_data.y, uuids=training_data.uuids
                 )
 
-    def get_total_loss(self):
-        losses = []
-        for batch_number, (X, y) in enumerate(self._data_loader):
-            X = X.to(self._device)
-            y = y.to(self._device)
-            y_pred = self._model(X)
-            loss = self._loss_function(y_pred, y)
-            loss = float(loss)
-            losses.append((loss, len(y)))
-            self._on_epoch_finish(
-                trainer=self, epoch=batch_number, losses=losses, loss=loss, X=X, y_pred=y_pred, y=y
-            )
+    def get_loss(self, training_data):
+        X, y, mask = (
+            training_data.X.to(self._device),
+            training_data.y.to(self._device),
+            training_data.mask.to(self._device)
+        )
+        y_pred = self._model(X)
+        loss = self._loss_function(y_pred, y)
+        return y_pred, loss * mask
 
-        total_samples_counted = sum(count for _, count in losses)
-        weighted_loss = sum(loss * count for loss, count in losses) / total_samples_counted
-        return weighted_loss
+    def process_loss(self, process):
+        for batch_number, training_data in enumerate(self._data_loader):
+            y_pred, loss_tensor = self.get_loss(training_data)
+            process(training_data, y_pred, loss_tensor)

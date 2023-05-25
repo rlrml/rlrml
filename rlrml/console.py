@@ -153,6 +153,16 @@ def _add_rlrml_args(parser=None):
         type=int,
         default=defaults.get('mmr-required-for-all-but', 0)
     )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=defaults.get('batch-size', 16)
+    )
+    parser.add_argument(
+        '--learning-rate',
+        type=float,
+        default=defaults.get('learning-rate', .0001)
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -529,7 +539,8 @@ def train_model(builder: _RLRMLBuilder):
             trainer = train.ReplayModelManager.from_dataset(
                 builder.torch_dataset, model=builder.model,
                 on_epoch_finish=live_stats.on_epoch_finish,
-                loss_function=builder.loss_function
+                loss_function=builder.loss_function, lr=builder.args.learning_rate,
+                batch_size=builder.args.batch_size
             )
             trainer.train(*args, **kwargs)
     do_train(10)
@@ -554,30 +565,35 @@ def apply_model(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.with_default
 def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
-    from .model.load import batched_packed_loader
     results = []
-    loss_fn = train.difference_loss
 
     def unscale(values):
         return [builder.label_scaler.unscale(v) for v in values]
 
     builder.model.eval()
 
-    for X, y, uuids in batched_packed_loader(builder.torch_dataset, batch_size=16):
+    trainer = train.ReplayModelManager.from_dataset(
+        builder.torch_dataset, model=builder.model,
+        loss_function=builder.loss_function, lr=builder.args.learning_rate,
+        batch_size=builder.args.batch_size
+    )
+
+    results = []
+
+    def process(training_data, y_pred, losses):
         print("Next Batch")
-        X = X.to(builder.device)
-        y = y.to(builder.device)
-        y_pred = builder.model(X)
-        unscaled_y = builder.label_scaler.unscale(y)
+        unscaled_y = builder.label_scaler.unscale(training_data.y)
         unscaled_y_pred = builder.label_scaler.unscale(y_pred)
-        losses = loss_fn(unscaled_y_pred, unscaled_y)
+
         results.extend(zip(
-            uuids,
+            training_data.uuids,
             unscaled_y.tolist(),
             unscaled_y_pred.tolist(),
             losses.tolist(),
             map(np.mean, losses.tolist()),
         ))
+
+    trainer.process_loss(process)
 
     results.sort(key=lambda v: v[4])
 
