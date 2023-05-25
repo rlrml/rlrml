@@ -86,7 +86,7 @@ class WeightedLoss(torch.nn.Module):
     ):
         super().__init__()
         self.loss_fn = loss_fn
-        self.add_module("loss", self.mse_loss)
+        self.add_module("loss", self.loss_fn)
         self._weight_by = weight_by
 
     def forward(self, y_pred, y_true):
@@ -111,14 +111,14 @@ def as_weight_matrix(tensor):
     return num_elements * (tensor / tensor.sum())
 
 
-def difference_loss(y_true, y_pred):
+def difference_loss(y_true, y_pred, loss_func=torch.nn.MSELoss(reduction="none")):
     # Compute all pairwise differences - ground truth and predictions
     y_true_diffs = y_true.unsqueeze(2) - y_true.unsqueeze(1)
     y_pred_diffs = y_pred.unsqueeze(2) - y_pred.unsqueeze(1)
 
     # Calculate the difference loss as the Mean Absolute Error (MAE) between
     # actual and predicted differences
-    diff_loss = torch.mean(torch.abs(y_pred_diffs - y_true_diffs), dim=2)
+    diff_loss = torch.mean(loss_func(y_pred_diffs, y_true_diffs), dim=2)
 
     return diff_loss
 
