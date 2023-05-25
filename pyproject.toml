@@ -27,6 +27,7 @@ rich = "^13.3.4"
 requests = {extras = ["socks"], version = "^2.28.2"}
 scipy = "^1.10.1"
 lmdb = "^1.4.1"
+websockets = "^11.0.3"
 
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
@@ -44,11 +45,12 @@ get_cache_answer_uuids = 'rlrml.console:get_cache_answer_uuids'
 create_symlink_directory = 'rlrml.console:create_symlink_replay_directory'
 train_model = 'rlrml.console:train_model'
 apply_model = 'rlrml.console:apply_model'
-calculate_loss = 'rlrml.console:calculate_mean_absolute_loss'
+calculate_loss = 'rlrml.console:calculate_loss'
 manual_override = 'rlrml.console:manual_override'
 delete_if_less_than = 'rlrml.console:delete_if_less_than'
 socks_proxy_get = 'rlrml.console:socks_proxy_get'
 lmdb_migrate = 'rlrml.console:lmdb_migrate'
+websocket_host = 'rlrml.console:websocket_host'
 
 [build-system]
 requires = ["poetry-core"]

@@ -26,6 +26,7 @@ from . import loss
 from . import vpn
 from . import _replay_meta
 from . import assess
+from . import websocket
 from .model import train, build
 from .playlist import Playlist
 
@@ -388,6 +389,14 @@ class _RLRMLBuilder:
         return self.args.loss_type.get_fn_from_args(**self.args.loss_params)
 
     @functools.cached_property
+    def trainer(self):
+        return train.ReplayModelManager.from_dataset(
+            self.torch_dataset, model=self.model,
+            loss_function=self.loss_function, lr=self.args.learning_rate,
+            batch_size=self.args.batch_size
+        )
+
+    @functools.cached_property
     def model(self):
         model = build.ReplayModel(
             self.header_info, self.playlist, lstm_width=self.args.lstm_width,
@@ -533,16 +542,13 @@ def train_model(builder: _RLRMLBuilder):
     import rich.live
     from .model import display
 
+    trainer = builder.trainer
+
     def do_train(*args, **kwargs):
         with rich.live.Live() as live:
             live_stats = display.TrainLiveStatsDisplay(live, scaler=builder.label_scaler)
-            trainer = train.ReplayModelManager.from_dataset(
-                builder.torch_dataset, model=builder.model,
-                on_epoch_finish=live_stats.on_epoch_finish,
-                loss_function=builder.loss_function, lr=builder.args.learning_rate,
-                batch_size=builder.args.batch_size
-            )
-            trainer.train(*args, **kwargs)
+            trainer.train(*args, on_epoch_finish=live_stats.on_epoch_finish, **kwargs)
+
     do_train(10)
     import ipdb; ipdb.set_trace()
 
@@ -564,19 +570,13 @@ def apply_model(builder: _RLRMLBuilder):
 
 
 @_RLRMLBuilder.with_default
-def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
+def calculate_loss(builder: _RLRMLBuilder):
     results = []
 
     def unscale(values):
         return [builder.label_scaler.unscale(v) for v in values]
 
     builder.model.eval()
-
-    trainer = train.ReplayModelManager.from_dataset(
-        builder.torch_dataset, model=builder.model,
-        loss_function=builder.loss_function, lr=builder.args.learning_rate,
-        batch_size=builder.args.batch_size
-    )
 
     results = []
 
@@ -593,7 +593,7 @@ def calculate_mean_absolute_loss(builder: _RLRMLBuilder):
             map(np.mean, losses.tolist()),
         ))
 
-    trainer.process_loss(process)
+    builder.trainer.process_loss(process)
 
     results.sort(key=lambda v: v[4])
 
@@ -650,6 +650,21 @@ def game_to_json(builder: _RLRMLBuilder):
 def lmdb_migrate(builder: _RLRMLBuilder):
     lmdb_cache = pc.PlayerCache.lmdb(builder.args.lmdb_filepath)
     migrate_cache_raw(builder.player_cache, lmdb_cache)
+
+
+@_RLRMLBuilder.with_default
+def websocket_host(builder: _RLRMLBuilder):
+    server = websocket.Server.serve_in_dedicated_thread("localhost", 5002)
+
+    def on_epoch_finish(**kwargs):
+        del kwargs["trainer"]
+        for k in kwargs.keys():
+            if isinstance(kwargs[k], torch.Tensor):
+                kwargs[k] = kwargs[k].tolist()
+        server.process_message(json.dumps(kwargs))
+
+    builder.trainer.train(500, on_epoch_finish=on_epoch_finish)
+    import ipdb; ipdb.set_trace()
 
 
 def migrate_cache_raw(source_cache: pc.PlayerCache, dest_cache: pc.PlayerCache):

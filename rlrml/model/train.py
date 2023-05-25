@@ -18,7 +18,7 @@ def gpu_memory_remaining():
     return reserved - allocated
 
 
-def log_batch_finish(_trainer, epoch, losses, loss, X, y_pred, y, **kwargs):
+def log_batch_finish(_trainer, epoch, losses, loss, y_pred, y, **kwargs):
     logger.info(f"Epoch {epoch} finished with {loss:,}, gpu_free: {gpu_memory_remaining()}")
 
 
@@ -33,8 +33,7 @@ class ReplayModelManager:
 
     def __init__(
             self, model, data_loader: torch.utils.data.DataLoader,
-            use_cuda=None, on_epoch_start=log_epoch_start,
-            on_epoch_finish=log_batch_finish, loss_function=None, accumulation_steps=1,
+            use_cuda=None, loss_function=None, accumulation_steps=1,
             lr=.00001, device=None
     ):
         self._device = device or torch.device("cuda")
@@ -42,11 +41,9 @@ class ReplayModelManager:
         self._data_loader = data_loader
         self._loss_function = loss_function or torch.nn.MSELoss()
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
-        self._on_epoch_start = on_epoch_start
-        self._on_epoch_finish = on_epoch_finish
         self._accumulation_steps = accumulation_steps
 
-    def train(self, epochs=10):
+    def train(self, epochs=10, on_epoch_finish=log_batch_finish):
         logger.info(f"Starting training for {epochs} epochs on {self._device}")
         batch_iterator = iter(self._data_loader)
         for epoch in range(epochs):
@@ -56,7 +53,6 @@ class ReplayModelManager:
                 batch_iterator = iter(self._data_loader)
                 training_data = next(batch_iterator)
 
-            self._on_epoch_start(self, epoch)
             y_pred, loss = self.get_loss(training_data)
             mean_loss = loss.sum() / training_data.mask.sum()
             mean_loss.backward()
@@ -64,9 +60,9 @@ class ReplayModelManager:
             if (epoch + 1) % self._accumulation_steps == 0:
                 self._optimizer.step()
                 self._optimizer.zero_grad()
-                self._on_epoch_finish(
-                    trainer=self, epoch=epoch, loss=mean_loss, X=training_data.X, y_pred=y_pred,
-                    y=training_data.y, uuids=training_data.uuids
+                on_epoch_finish(
+                    trainer=self, epoch=epoch, loss=mean_loss.detach(), y_pred=y_pred.detach(),
+                    y=training_data.y.detach(), uuids=training_data.uuids
                 )
 
     def get_loss(self, training_data):
