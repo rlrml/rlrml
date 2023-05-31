@@ -178,6 +178,7 @@ def get_game_date(game_data):
 
 
 class _MMRHistorySplitter:
+    """Class to split MMR history into per-season segments."""
 
     @classmethod
     def from_tracker_data(cls, mmr_history, **kwargs):
@@ -229,6 +230,16 @@ class _MMRHistorySplitter:
         before_end = date <= self._end_date
         in_bounds = after_start and before_end
 
+        # This condition checks three scenarios for appending the MMR item to
+        # the current segment.
+        # 1. All seasons have been exhausted. In this case, every remaining MMR
+        # item gets appended to the last segment.
+        # 2. The current season has started and the MMR item falls within the
+        # season's dates.
+        # 3. The MMR item's date is prior to the start date of the current
+        # season and the season hasn't started yet. This handles cases where MMR
+        # history data is either prior to the start of the first season or falls
+        # in between seasons.
         if self._seasons_exhausted or (
             self._season_started and in_bounds
         ) or (
