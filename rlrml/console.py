@@ -701,10 +701,10 @@ def websocket_host(builder: _RLRMLBuilder):
         del kwargs["trainer"]
         kwargs['loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(kwargs['loss']))
         kwargs['y_loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(
-            kwargs['y_loss']
+            kwargs['y_loss'].cpu()
         )).tolist()
-        kwargs['y_pred'] = builder.label_scaler.unscale(kwargs['y_pred']).tolist()
-        kwargs['y'] = builder.label_scaler.unscale(kwargs['y']).tolist()
+        kwargs['y_pred'] = builder.label_scaler.unscale(kwargs['y_pred'].cpu()).tolist()
+        kwargs['y'] = builder.label_scaler.unscale(kwargs['y'].cpu()).tolist()
         server.process_message(json.dumps(kwargs))
         return thread_info["should_continue"]
 

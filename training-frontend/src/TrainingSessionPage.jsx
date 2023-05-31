@@ -4,10 +4,8 @@ import {CategoryScale} from 'chart.js';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { useTable, useSortBy } from 'react-table';
-
-const zip = (...arr) => Array(Math.max(...arr.map(a => a.length))).fill().map(
-    (_, i) => arr.map(a => a[i])
-);
+import Slider from 'rc-slider';
+import 'rc-slider/assets/index.css';
 
 const TrainingSessionPage = () => {
 	// For keeping track of connection state.
@@ -15,6 +13,12 @@ const TrainingSessionPage = () => {
 
     // Array to store history of 'loss' values
     const [lossHistory, setLossHistory] = useState([]);
+
+    // Controls the resolution of the graph
+    const [bucketSize, setBucketSize] = useState(10);
+
+    // State variable for bucketedLoss
+    const [bucketedLossHistory, setBucketedLossHistory] = useState([]);
 
     // Object to store game info data
     const [gameInfo, setGameInfo] = useState({});
@@ -24,6 +28,20 @@ const TrainingSessionPage = () => {
 
     // WebSocket URL
     const [wsUrl, setWsUrl] = useState('ws://localhost:5002');
+
+        // A function to calculate bucketed average
+    const calculateBucketedAverage = (data, bucketSize) => {
+        let bucketedData = [];
+
+        for (let i = 0; i < data.length; i += bucketSize) {
+            let bucket = data.slice(i, i + bucketSize);
+            let sum = bucket.reduce((a, b) => a + b, 0);
+            let avg = sum / bucket.length;
+            bucketedData.push(avg);
+        }
+
+        return bucketedData;
+    };
 
     const connectWebSocket = () => {
         if (wsUrl.trim() !== '') {
@@ -87,19 +105,11 @@ const TrainingSessionPage = () => {
         }
     }, [ws]);
 
-    // Line chart data
-    const chartData = {
-        labels: Array.from({length: lossHistory.length}, (_, i) => i + 1),
-        datasets: [
-            {
-                label: 'Loss',
-                data: lossHistory,
-                fill: false,
-                backgroundColor: 'rgb(255, 99, 132)',
-                borderColor: 'rgba(255, 99, 132, 0.2)',
-            },
-        ],
-    };
+    useEffect(() => {
+        const bucketedData = calculateBucketedAverage(lossHistory, bucketSize);
+        setBucketedLossHistory(bucketedData);
+
+    }, [lossHistory, bucketSize]);
 
     const data = useMemo(() => Object.keys(gameInfo).map(uuid => ({ uuid, ...gameInfo[uuid] })), [gameInfo]);
 
@@ -142,9 +152,32 @@ const TrainingSessionPage = () => {
 				<button onClick={connectWebSocket}>Connect</button>
 				<p>Status: {connectionStatus}</p>
                 <button onClick={sendToggleTraining}>Toggle Training</button>
+                <div style={{ width: '300px', height: '50px' }}>
+                    <Slider
+                        min={1}
+                        max={100} // Adjust this to your needs
+                        value={bucketSize}
+                        onChange={setBucketSize}
+                        style={{ width: '300px', height: '50px' }}
+                    />
+                </div>
 			</div>
-
-            <Line data={chartData} />
+            <div style={{ margin: '50px' }}>
+            <Line
+                data={{
+                    labels: bucketedLossHistory.map((_, i) => i + 1),
+                    datasets: [
+                        {
+                            label: 'Training Loss',
+                            data: bucketedLossHistory,
+                            fill: false,
+                            backgroundColor: 'rgb(75, 192, 192)',
+                            borderColor: 'rgba(75, 192, 192, 0.2)',
+                        },
+                    ],
+                }}
+            />
+            </div>
             <div>
                 <table {...getTableProps()} style={{ margin: '0 auto', marginTop: '50px' }}>
                     <thead>
