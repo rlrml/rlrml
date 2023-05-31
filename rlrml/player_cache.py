@@ -4,33 +4,12 @@ import json
 import lmdb
 import logging
 import plyvel
-import contextlib
 
 from . import tracker_network
 from ._replay_meta import PlatformPlayer
 
 
 logger = logging.getLogger(__name__)
-
-
-class PlayerCacheError(Exception):
-    """A base class for player cache errors."""
-
-    pass
-
-
-class PlayerCacheStoredError(PlayerCacheError):
-    """An error stored in the cache for the player."""
-
-    def __init__(self, data):
-        """Initialize the error with the data that is stored about the error in the cache."""
-        self.data = data
-
-
-class PlayerCacheMissError(PlayerCacheError):
-    """An error that is thrown when the player is not found in the cache."""
-
-    pass
 
 
 def _use_tracker_url_suffix_as_key(player):
