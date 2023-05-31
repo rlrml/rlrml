@@ -60,10 +60,13 @@ class ReplayModelManager:
             if (epoch + 1) % self._accumulation_steps == 0:
                 self._optimizer.step()
                 self._optimizer.zero_grad()
-                on_epoch_finish(
-                    trainer=self, epoch=epoch, loss=mean_loss.detach(), y_pred=y_pred.detach(),
-                    y=training_data.y.detach(), uuids=training_data.uuids
+                should_continue = on_epoch_finish(
+                    trainer=self, epoch=epoch, loss=float(mean_loss.detach()),
+                    y_pred=y_pred.detach(), y=training_data.y.detach(),
+                    uuids=training_data.uuids, y_loss=loss.detach(),
                 )
+                if should_continue is not None and not should_continue:
+                    return
 
     def get_loss(self, training_data):
         X, y, mask = (

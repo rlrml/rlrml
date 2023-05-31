@@ -46,18 +46,23 @@ def _rlrml_config_directory():
     return os.path.join(xdg_base_dirs.xdg_config_home(), "rlrml")
 
 
-def _rlrml_data_directory():
-    return os.path.join(xdg_base_dirs.xdg_data_dirs()[0], "rlrml")
+def _rlrml_data_directory(config):
+    if "data-directory" in config:
+        return config["data-directory"]
+    paths = [path for path in xdg_base_dirs.xdg_data_dirs() if not any(
+        "nix" in part for part in path._parts
+    )]
+    return os.path.join(paths[0], "rlrml")
 
 
 def _add_rlrml_args(parser=None):
     parser = parser or argparse.ArgumentParser()
     config = _load_rlrml_config()
-    rlrml_directory = _rlrml_data_directory()
+    rlrml_data_directory = _rlrml_data_directory(config)
     defaults = {
-        "player-cache": os.path.join(rlrml_directory, "player_cache"),
-        "tensor-cache": os.path.join(rlrml_directory, "tensor_cache"),
-        "replay-path": os.path.join(rlrml_directory, "replay_path"),
+        "player-cache": os.path.join(rlrml_data_directory, "player_cache"),
+        "tensor-cache": os.path.join(rlrml_data_directory, "tensor_cache"),
+        "replay-path": os.path.join(rlrml_data_directory, "replays"),
         "playlist": Playlist("Ranked Doubles 2v2"),
         "boxcar-frames-arguments": {
             "fps": 10,
@@ -102,7 +107,7 @@ def _add_rlrml_args(parser=None):
     )
     parser.add_argument(
         '--scale-positions',
-        default=True,
+        default=False,
     )
     parser.add_argument(
         '--model-path',
@@ -164,6 +169,11 @@ def _add_rlrml_args(parser=None):
         type=float,
         default=defaults.get('learning-rate', .0001)
     )
+    parser.add_argument(
+        '--device',
+        type=str,
+        default=defaults.get('device', 'cuda')
+    )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
         '--ballchasing-token', help="A ballchasing.com authorization token.", type=str,
@@ -222,7 +232,12 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def position_scaler(self):
-        return util.ReplayPositionRescaler(self.header_info, self.playlist)
+        if self.args.scale_positions:
+            return util.ReplayPositionRescaler(self.header_info, self.playlist)
+        else:
+            return util.ReplayPositionRescaler(
+                self.header_info, self.playlist, util.RatioScaler(ratio=1.0)
+            )
 
     @functools.cached_property
     def vpn_cycle_status_codes(self):
@@ -393,7 +408,7 @@ class _RLRMLBuilder:
         return train.ReplayModelManager.from_dataset(
             self.torch_dataset, model=self.model,
             loss_function=self.loss_function, lr=self.args.learning_rate,
-            batch_size=self.args.batch_size
+            batch_size=self.args.batch_size, device=self.device,
         )
 
     @functools.cached_property
@@ -410,7 +425,7 @@ class _RLRMLBuilder:
 
     @functools.cached_property
     def device(self):
-        return torch.device('cuda')
+        return torch.device(self.args.device)
 
     @functools.cached_property
     def ballchasing_requests_session(self):
@@ -528,7 +543,7 @@ def get_player(builder: _RLRMLBuilder):
     """Get the provided player either from the cache or the tracker network."""
 
     player = {"__tracker_suffix__": builder.args.player_key}
-    builder.cached_get_player_data(player, force_refresh=True)
+    builder.cached_get_player_data(player, force_refresh=False)
     data = builder.player_cache.get_player_data(
         player
     )
@@ -654,17 +669,51 @@ def lmdb_migrate(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.with_default
 def websocket_host(builder: _RLRMLBuilder):
-    server = websocket.Server.serve_in_dedicated_thread("localhost", 5002)
+    from threading import Thread
+
+    def handle_message(message):
+        message = json.loads(message)
+        logger.info(f"{message}")
+        if message["type"] == "toggle_training":
+            toggle_training()
+        else:
+            logger.warn("Unknown message")
+
+    server = websocket.Server.serve_in_dedicated_thread(
+        "localhost", 5002, client_message_handler=handle_message
+    )
+    thread_info = {
+        "training_thread": None,
+        "should_continue": True,
+    }
+
+    def toggle_training():
+        logger.info("Toggling training")
+        if thread_info["training_thread"] is None:
+            thread_info["training_thread"] = Thread(target=train)
+            thread_info["should_continue"] = True
+            thread_info["training_thread"].start()
+        else:
+            thread_info["should_continue"] = False
+            thread_info["training_thread"] = None
 
     def on_epoch_finish(**kwargs):
         del kwargs["trainer"]
-        for k in kwargs.keys():
-            if isinstance(kwargs[k], torch.Tensor):
-                kwargs[k] = kwargs[k].tolist()
+        kwargs['loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(kwargs['loss']))
+        kwargs['y_loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(
+            kwargs['y_loss']
+        )).tolist()
+        kwargs['y_pred'] = builder.label_scaler.unscale(kwargs['y_pred']).tolist()
+        kwargs['y'] = builder.label_scaler.unscale(kwargs['y']).tolist()
         server.process_message(json.dumps(kwargs))
+        return thread_info["should_continue"]
 
-    builder.trainer.train(500, on_epoch_finish=on_epoch_finish)
-    import ipdb; ipdb.set_trace()
+    def train(epochs=500):
+        builder.trainer.train(500, on_epoch_finish=on_epoch_finish)
+
+    import time
+    while True:
+        time.sleep(100)
 
 
 def migrate_cache_raw(source_cache: pc.PlayerCache, dest_cache: pc.PlayerCache):

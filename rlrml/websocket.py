@@ -24,9 +24,10 @@ class Server:
 
         return server
 
-    def __init__(self, loop=None):
+    def __init__(self, loop=None, client_message_handler=lambda x: None):
         self.loop = loop or asyncio.get_event_loop()
         self.connected = set()
+        self.client_message_handler = client_message_handler
 
     async def process_and_broadcast_message(self, message, prepare_for_broadcast=lambda x: x):
         processed_message = prepare_for_broadcast(message)
@@ -42,7 +43,7 @@ class Server:
         self.connected.add(websocket)
         try:
             async for message in websocket:
-                self.process_message(message)
+                self.client_message_handler(message)
         finally:
             # Unregister.
             self.connected.remove(websocket)
