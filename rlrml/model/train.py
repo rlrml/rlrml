@@ -1,5 +1,6 @@
 import torch
 import logging
+import itertools
 
 from .. import load
 from . import build
@@ -43,10 +44,11 @@ class ReplayModelManager:
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
         self._accumulation_steps = accumulation_steps
 
-    def train(self, epochs=10, on_epoch_finish=log_batch_finish):
+    def train(self, epochs=None, on_epoch_finish=log_batch_finish):
         logger.info(f"Starting training for {epochs} epochs on {self._device}")
         batch_iterator = iter(self._data_loader)
-        for epoch in range(epochs):
+        epoch_iterator = itertools.count() if epochs is None else range(epochs)
+        for epoch in epoch_iterator:
             try:
                 training_data = next(batch_iterator)
             except StopIteration:

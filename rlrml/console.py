@@ -97,7 +97,8 @@ def _add_rlrml_args(parser=None):
     parser.add_argument(
         '--playlist',
         help="The name (or number) of the playlist that is being used.",
-        default='Ranked Doubles 2v2'
+        default=defaults.get('playlist'),
+        choices=list(Playlist)
     )
     parser.add_argument(
         '--cycle-vpn',
@@ -669,47 +670,9 @@ def lmdb_migrate(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.with_default
 def websocket_host(builder: _RLRMLBuilder):
-    from threading import Thread
-
-    def handle_message(message):
-        message = json.loads(message)
-        logger.info(f"{message}")
-        if message["type"] == "toggle_training":
-            toggle_training()
-        else:
-            logger.warn("Unknown message")
-
-    server = websocket.Server.serve_in_dedicated_thread(
-        "localhost", 5002, client_message_handler=handle_message
+    websocket.FrontendManager(
+        "localhost", 5002, builder.trainer, builder.label_scaler
     )
-    thread_info = {
-        "training_thread": None,
-        "should_continue": True,
-    }
-
-    def toggle_training():
-        logger.info("Toggling training")
-        if thread_info["training_thread"] is None:
-            thread_info["training_thread"] = Thread(target=train)
-            thread_info["should_continue"] = True
-            thread_info["training_thread"].start()
-        else:
-            thread_info["should_continue"] = False
-            thread_info["training_thread"] = None
-
-    def on_epoch_finish(**kwargs):
-        del kwargs["trainer"]
-        kwargs['loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(kwargs['loss']))
-        kwargs['y_loss'] = np.sqrt(builder.label_scaler.unscale_no_translate(
-            kwargs['y_loss'].cpu()
-        )).tolist()
-        kwargs['y_pred'] = builder.label_scaler.unscale(kwargs['y_pred'].cpu()).tolist()
-        kwargs['y'] = builder.label_scaler.unscale(kwargs['y'].cpu()).tolist()
-        server.process_message(json.dumps(kwargs))
-        return thread_info["should_continue"]
-
-    def train(epochs=500):
-        builder.trainer.train(500, on_epoch_finish=on_epoch_finish)
 
     import time
     while True:

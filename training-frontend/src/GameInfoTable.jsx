@@ -8,7 +8,6 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import _ from 'lodash';
 
 function formatMMRArrayWithIndex(array, separator = " | ") {
 	const formattedValues = array.map((value, index) => {
@@ -21,17 +20,51 @@ function formatMMRArrayWithIndex(array, separator = " | ") {
 }
 
 function getLargestMiss(row) {
-	let pairs = _.zip(row.y, row.y_pred);
+	let pairs = zip(row.y, row.y_pred);
 	let deltas = pairs.map(
 		v => Math.abs(v[0] - v[1]),
 	)
-	return Math.max(...deltas)
+	return Math.trunc(Math.max(...deltas))
 }
 
 function getLargestDelta(row) {
 	let max = Math.max(...row.y);
 	let min = Math.min(...row.y);
-	return max - min;
+	return Math.trunc(max - min);
+}
+
+function meanSquaredError(y_true, y_pred) {
+  let sum = 0;
+  let length = y_true.length;
+
+  // Check if lengths of arrays are the same
+  if (length !== y_pred.length) {
+    throw new Error("Arrays should have the same length.");
+  }
+
+  for (let i = 0; i < length; i++) {
+    let diff = y_true[i] - y_pred[i];
+    sum += diff * diff;
+  }
+
+  return sum / length;
+}
+
+function meanAbsoluteError(y_true, y_pred) {
+  let sum = 0;
+  let length = y_true.length;
+
+  // Check if lengths of arrays are the same
+  if (length !== y_pred.length) {
+    throw new Error("Arrays should have the same length.");
+  }
+
+  for (let i = 0; i < length; i++) {
+    let diff = Math.abs(y_true[i] - y_pred[i]);
+    sum += diff;
+  }
+
+  return sum / length;
 }
 
 const zip = (a, b) => a.map((k, i) => [k, b[i]]);
@@ -66,6 +99,14 @@ const GameInfoTable = () => {
 			{
 				header: 'Largest Delta',
 				accessorFn: getLargestDelta,
+			},
+			{
+				header: 'MSE',
+				accessorFn: row => Math.trunc(meanSquaredError(row.y_pred, row.y)),
+			},
+			{
+				header: 'MAE',
+				accessorFn: row => Math.trunc(meanAbsoluteError(row.y_pred, row.y)),
 			}
 		],
 		[]
@@ -86,8 +127,8 @@ const GameInfoTable = () => {
 	});
 
    return (
-    <div className="p-2">
-      <div className="h-2" />
+    <div>
+      <div />
       <table>
         <thead>
           {table.getHeaderGroups().map(headerGroup => (
@@ -129,7 +170,7 @@ const GameInfoTable = () => {
                 <tr key={row.id}>
                   {row.getVisibleCells().map(cell => {
                     return (
-                      <td key={cell.id}>
+						<td key={cell.id} style={{textAlign: "center"}}>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

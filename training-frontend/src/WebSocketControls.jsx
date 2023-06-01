@@ -7,10 +7,15 @@ const WebSocketControls = () => {
 
 	const [address, setAddress ] = React.useState('ws://localhost:5002');
 
-    const handleClickToggle = () => {
-        console.log(webSocket);
+    const handleClickStart = () => {
         if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-            webSocket.send(JSON.stringify({ type: 'toggle_training' }));
+            webSocket.send(JSON.stringify({ type: 'start_training' }));
+        }
+    };
+
+    const handleClickStop = () => {
+        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+            webSocket.send(JSON.stringify({ type: 'stop_training' }));
         }
     };
 
@@ -27,7 +32,8 @@ const WebSocketControls = () => {
             <input type="text" value={address} onChange={handleChange}
                    placeholder="Enter WebSocket address" />
             <button onClick={handleConnect}>Connect ({connectionStatus})</button>
-            <button onClick={handleClickToggle}>Toggle Training</button>
+            <button onClick={handleClickStart}>Start Training</button>
+            <button onClick={handleClickStop}>Stop Training</button>
         </div>
     );
 };

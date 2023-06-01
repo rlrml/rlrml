@@ -15,6 +15,8 @@ const WebSocketProvider = ({ children }) => {
       return;
     }
 
+    console.log("Attempting connection to " + webSocketAddress);
+
     socket = new WebSocket(webSocketAddress)
     setWebSocket(socket);
 
@@ -34,10 +36,12 @@ const WebSocketProvider = ({ children }) => {
 
 	socket.onclose = () => {
 	  setConnectionStatus('disconnected');
+      setWebSocketAddress(null);
 	};
 
     return () => {
       socket.close();
+      setWebSocketAddress(null);
     };
 
   }, [webSocketAddress]);
