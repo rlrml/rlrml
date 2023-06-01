@@ -15,8 +15,6 @@ const WebSocketProvider = ({ children }) => {
       return;
     }
 
-    console.log("Attempting connection to " + webSocketAddress);
-
     socket = new WebSocket(webSocketAddress)
     setWebSocket(socket);
 

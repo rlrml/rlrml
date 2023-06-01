@@ -123,7 +123,6 @@ const GameInfoTable = () => {
 		onSortingChange: setSorting,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
-		debugTable: true,
 	});
 
    return (

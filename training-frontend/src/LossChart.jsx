@@ -36,17 +36,7 @@ const LossChart = () => {
 
     }, [lossHistory, bucketSize]);
 
-    const options = {
-        scales: {
-            yAxes: [
-                {
-                    ticks: {
-                        beginAtZero: true,
-                    },
-                },
-            ],
-        },
-    };
+    const options = {};
 
     const handleBucketSizeChange = event => {
         let newSize = Number(event.target.value);
