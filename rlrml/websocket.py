@@ -107,7 +107,6 @@ class FrontendManager:
 
     def _train(self, epochs=None):
         self._trainer.train(epochs=epochs, on_epoch_finish=self._on_epoch_finish)
-        training_thread = self._training_thread
         self._training_thread = None
 
     def _prepare_training_info_for_broadcast(self, kwargs):
@@ -118,10 +117,10 @@ class FrontendManager:
         )).tolist()
         kwargs['y_pred'] = self._label_scaler.unscale(kwargs['y_pred'].cpu()).tolist()
         kwargs['y'] = self._label_scaler.unscale(kwargs['y'].cpu()).tolist()
-        return kwargs
+        return json.dumps(kwargs)
 
     def _on_epoch_finish(self, **kwargs):
-        self._server.process_and_broadcast_message(
+        self._server.process_message(
             kwargs, self._prepare_training_info_for_broadcast
         )
         return self._training_should_continue
