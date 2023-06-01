@@ -8,15 +8,27 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
+import _ from 'lodash';
 
-function formatMMRArrayWithIndex(array, separator = " | ") {
-	const formattedValues = array.map((value, index) => {
-		const truncatedValue = Math.trunc(value);
-		const padded = truncatedValue.toString().padStart(4, '0');
-		return `${index + 1}: ${padded}`;
-  });
+function formattedPlayerToPrediction(row) {
+	let playerData = _.zip(...[row.tracker_suffixes, row.y, row.y_pred]);
+	const formattedValues = playerData.map((value) => {
+		const actual = Math.trunc(Number(value[1])).toString().padStart(4, '0');
+		const predicted = Math.trunc(Number(value[2])).toString().padStart(4, '0');
+		const playerText = value[0].split('/')[1].substring(0, 10).padStart(10, ' ');
+		const linkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${value[0]}`;
+		return (
+			<span>
+				<a href={linkTarget}>{playerText}</a> - {actual} ({predicted})
+			</span>
+		);
+	});
 
-  return formattedValues.join(separator);
+	return (
+		<span>
+			{ formattedValues }
+		</span>
+	)
 }
 
 function getLargestMiss(row) {
@@ -78,26 +90,28 @@ const GameInfoTable = () => {
 		() => [
 			{
 				header: 'UUID',
-				accessorKey: 'uuid',
+				accessorFn: row => row.uuid.substring(0, 8) ,
 			},
 			{
-				header: 'Actual MMRs',
-				accessorFn: row => formatMMRArrayWithIndex(row.y),
+				header: 'Players',
+				accessorFn: formattedPlayerToPrediction,
+				cell: row => row.getValue(),
 			},
 			{
-				header: 'Predicted MMRs',
-				accessorFn: row => formatMMRArrayWithIndex(row.y_pred),
+				header: 'Players2',
+				accessorFn: formattedPlayerToPrediction,
+				cell: row => console.log(row),
 			},
 			{
-				header: 'Updated Epoch',
+				header: 'Upd. Ep.',
 				accessorKey: 'update_epoch',
 			},
 			{
-				header: 'Largest Miss',
+				header: '> Miss',
 				accessorFn: getLargestMiss,
 			},
 			{
-				header: 'Largest Delta',
+				header: '> Delt',
 				accessorFn: getLargestDelta,
 			},
 			{

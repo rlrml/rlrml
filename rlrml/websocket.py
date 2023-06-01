@@ -100,9 +100,11 @@ class FrontendManager:
         self._training_thread = Thread(
             target=self._train, kwargs=message.get("args", {}), daemon=True
         )
+        logger.info("Starting training")
         self._training_thread.start()
 
     def _stop_training(self, _message):
+        logger.info("Stopping training")
         self._training_should_continue = False
 
     def _train(self, epochs=None):
@@ -117,6 +119,11 @@ class FrontendManager:
         )).tolist()
         kwargs['y_pred'] = self._label_scaler.unscale(kwargs['y_pred'].cpu()).tolist()
         kwargs['y'] = self._label_scaler.unscale(kwargs['y'].cpu()).tolist()
+        kwargs['tracker_suffixes'] = [
+            [player.tracker_suffix for player in meta.player_order]
+            for meta in kwargs['meta']
+        ]
+        del kwargs['meta']
         return json.dumps(kwargs)
 
     def _on_epoch_finish(self, **kwargs):

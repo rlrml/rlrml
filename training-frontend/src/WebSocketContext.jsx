@@ -57,6 +57,7 @@ function getGameInfo(data) {
     "y": data.y[index],
     "y_pred": data.y_pred[index],
     "y_loss": data.y_loss[index],
+    "tracker_suffixes": data.tracker_suffixes[index],
     "update_epoch": data.epoch,
   }]));
 }

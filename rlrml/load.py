@@ -240,7 +240,7 @@ class DirectoryReplaySet(ReplaySet):
 VariableLengthSequenceTensor = collections.namedtuple("VariableLengthSequenceTensor", "tensor")
 
 
-TrainingData = collections.namedtuple("TrainingData", "X y mask uuids")
+TrainingData = collections.namedtuple("TrainingData", "X y mask uuids meta")
 
 
 class ReplayDataset(Dataset):
@@ -324,7 +324,7 @@ class ReplayDataset(Dataset):
         labels, mask = self._get_replay_labels(uuid, meta)
 
         return TrainingData(
-            VariableLengthSequenceTensor(replay_tensor), labels, mask, uuid
+            VariableLengthSequenceTensor(replay_tensor), labels, mask, uuid, meta
         )
 
     def iter_with_uuid(self):
@@ -339,16 +339,24 @@ def batched_packed_loader(dataset, *args, **kwargs) -> torch.utils.data.DataLoad
 
     truncate_to = kwargs.pop("truncate_sequences_to", 4000)
 
-    def collate_variable_length_sequence_tensor(values, **kwargs):
+    def collate_variable_length_sequence_tensor(values, collate_fn_map=None):
         return torch.nn.utils.rnn.pad_sequence(
             (value.tensor[:truncate_to] for value in values), batch_first=True
         )
 
+    def collate_replay_meta(values, collate_fn_map=None):
+        return values
+
     rlrml_collate_fn_map = dict(torch.utils.data._utils.collate.default_collate_fn_map)
     rlrml_collate_fn_map[VariableLengthSequenceTensor] = collate_variable_length_sequence_tensor
+    rlrml_collate_fn_map[ReplayMeta] = collate_replay_meta
 
-    kwargs.setdefault("collate_fn", lambda batch: torch.utils.data._utils.collate.collate(
-        batch, collate_fn_map=rlrml_collate_fn_map
-    ))
+    def custom_collate(batch):
+        value = torch.utils.data._utils.collate.collate(
+            batch, collate_fn_map=rlrml_collate_fn_map
+        )
+        return value
+
+    kwargs.setdefault("collate_fn", custom_collate)
 
     return torch.utils.data.DataLoader(dataset, *args, **kwargs)
