@@ -685,7 +685,8 @@ def lmdb_migrate(builder: _RLRMLBuilder):
 @_RLRMLBuilder.with_default
 def websocket_host(builder: _RLRMLBuilder):
     websocket.FrontendManager(
-        "localhost", 5002, builder.trainer, builder.label_scaler
+        "localhost", 5002, builder.trainer, builder.label_scaler, builder.args,
+        _add_rlrml_args()
     )
 
     import sys

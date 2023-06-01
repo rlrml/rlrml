@@ -68,7 +68,9 @@ class LossType(enum.StrEnum):
 
 class FrontendManager:
 
-    def __init__(self, host, port, trainer, label_scaler):
+    def __init__(self, host, port, trainer, label_scaler, args, parser):
+        self._args = args
+        self._parser = parser
         self._trainer = trainer
         self._training_thread = None
         self._training_should_continue = True
@@ -104,6 +106,12 @@ class FrontendManager:
             target=self._train, kwargs=message.get("args", {}), daemon=True
         )
         logger.info("Starting training")
+        self._server.send_message_to_clients(
+            self._make_client_message(
+                "training_start",
+                {"player_count": self._args.playlist.player_count}
+            )
+        )
         self._training_thread.start()
 
     def _stop_training(self, _message):

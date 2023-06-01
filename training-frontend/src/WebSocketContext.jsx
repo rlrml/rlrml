@@ -10,6 +10,7 @@ const WebSocketProvider = ({ children }) => {
 
   const [lossHistory, setLossHistory] = React.useState([]);
   const [gameInfo, setGameInfo] = React.useState({});
+  const [trainingPlayerCount, setTrainingPlayerCount] = React.useState(4);
 
   const [configuration, setConfiguration] = React.useState({});
   let socket;
@@ -19,8 +20,16 @@ const WebSocketProvider = ({ children }) => {
     setGameInfo(prevGameInfo => ({...prevGameInfo, ...getGameInfo(data)}));
   };
 
+  const handleTrainingStart = (data) => {
+    if (isNaN(data.player_count)) {
+      console.log(`Data did not contain numerical player count ${data}`)
+    }
+    setTrainingPlayerCount(data.player_count);
+  }
+
   const messageTypeToHandler = {
     "training_epoch": handleTrainingEpoch,
+    "training_start": handleTrainingStart,
   };
 
   React.useEffect(() => {
@@ -61,7 +70,7 @@ const WebSocketProvider = ({ children }) => {
   }, [webSocketAddress]);
 
   return (
-	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket }}>
+	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount }}>
       {children}
     </WebSocketContext.Provider>
   );
@@ -70,9 +79,11 @@ const WebSocketProvider = ({ children }) => {
 function getGameInfo(data) {
   return Object.fromEntries(data.uuids.map((uuid, index) => [uuid, {
     "uuid": uuid,
-    "players": _.zipObject(
-      ["tracker_suffix", "mmr", "prediction"],
-      [data.tracker_suffixes[index], data.y[index], data.y_pred[index]]
+    "players": _.zipWith(
+      data.tracker_suffixes[index], data.y[index], data.y_pred[index],
+      (tracker_suffix, mmr, prediction) => {
+        return {tracker_suffix, mmr, prediction};
+      }
     ),
     "y": data.y[index],
     "y_pred": data.y_pred[index],

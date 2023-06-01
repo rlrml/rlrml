@@ -10,25 +10,16 @@ import {
 } from '@tanstack/react-table'
 import _ from 'lodash';
 
-function formattedPlayerToPrediction(row) {
-	let playerData = _.zip(...[row.tracker_suffixes, row.y, row.y_pred]);
-	const formattedValues = playerData.map((value) => {
-		const actual = Math.trunc(Number(value[1])).toString().padStart(4, '0');
-		const predicted = Math.trunc(Number(value[2])).toString().padStart(4, '0');
-		const playerText = value[0].split('/')[1].substring(0, 10).padStart(10, ' ');
-		const linkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${value[0]}`;
-		return (
-			<span>
-				<a href={linkTarget}>{playerText}</a> - {actual} ({predicted})
-			</span>
-		);
-	});
-
+function getPlayerCellContents(player) {
+	const actual = Math.trunc(Number(player.mmr)).toString().padStart(4, '0');
+	const predicted = Math.trunc(Number(player.prediction)).toString().padStart(4, '0');
+	const playerText = player.tracker_suffix.split('/')[1].substring(0, 10).padStart(10, ' ');
+	const linkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
 	return (
 		<span>
-			{ formattedValues }
+			{playerText} - <a href={linkTarget}>{actual}</a> ({predicted})
 		</span>
-	)
+	);
 }
 
 function getLargestMiss(row) {
@@ -88,7 +79,7 @@ function ballchasingURL(uuid) {
 const GameInfoTable = () => {
 	const [sorting, setSorting] = React.useState([]);
 
-	const { gameInfo } = React.useContext(WebSocketContext);
+	const { gameInfo, trainingPlayerCount } = React.useContext(WebSocketContext);
 
 	const columns = React.useMemo(
 		() => [
@@ -99,8 +90,17 @@ const GameInfoTable = () => {
 			},
 			{
 				header: 'Players',
-				accessorFn: formattedPlayerToPrediction,
-				cell: row => row.getValue(),
+				columns: [...Array(trainingPlayerCount).keys()].map((playerIndex) => {
+					return {
+						header: playerIndex.toString(),
+						accessorFn: (row) => {
+							console.log(row);
+							console.log(playerIndex);
+							return getPlayerCellContents(row.players[playerIndex])
+						},
+						cell: row => row.getValue(),
+					}
+				}),
 			},
 			{
 				header: 'Upd. Ep.',
@@ -123,7 +123,7 @@ const GameInfoTable = () => {
 				accessorFn: row => Math.trunc(meanAbsoluteError(row.y_pred, row.y)),
 			}
 		],
-		[]
+		[trainingPlayerCount]
 	);
 
 	const data = React.useMemo(() => Object.keys(gameInfo).map(uuid => ({ uuid, ...gameInfo[uuid] })), [gameInfo]);
