@@ -41,7 +41,7 @@ class Server:
         processed_message = prepare_for_broadcast(message)
         websockets.broadcast(self.connected, processed_message)
 
-    def process_message(self, message, prepare_for_broadcast=lambda x: x):
+    def send_message_to_clients(self, message, prepare_for_broadcast=lambda x: x):
         return asyncio.run_coroutine_threadsafe(
             self.process_and_broadcast_message(
                 message, prepare_for_broadcast=prepare_for_broadcast
@@ -92,6 +92,9 @@ class FrontendManager:
 
         return self._message_type_to_handler[message['type']](message)
 
+    def _make_client_message(self, message_type, data):
+        return json.dumps({"type": message_type, "data": data})
+
     def _start_training(self, message):
         if self._training_thread is not None:
             logger.warn("Attempt to start training even though training thread already exists")
@@ -111,23 +114,23 @@ class FrontendManager:
         self._trainer.train(epochs=epochs, on_epoch_finish=self._on_epoch_finish)
         self._training_thread = None
 
-    def _prepare_training_info_for_broadcast(self, kwargs):
-        del kwargs["trainer"]
-        kwargs['loss'] = np.sqrt(self._label_scaler.unscale_no_translate(kwargs['loss']))
-        kwargs['y_loss'] = np.sqrt(self._label_scaler.unscale_no_translate(
-            kwargs['y_loss'].cpu()
+    def _prepare_training_info_for_broadcast(self, data):
+        del data["trainer"]
+        data['loss'] = np.sqrt(self._label_scaler.unscale_no_translate(data['loss']))
+        data['y_loss'] = np.sqrt(self._label_scaler.unscale_no_translate(
+            data['y_loss'].cpu()
         )).tolist()
-        kwargs['y_pred'] = self._label_scaler.unscale(kwargs['y_pred'].cpu()).tolist()
-        kwargs['y'] = self._label_scaler.unscale(kwargs['y'].cpu()).tolist()
-        kwargs['tracker_suffixes'] = [
+        data['y_pred'] = self._label_scaler.unscale(data['y_pred'].cpu()).tolist()
+        data['y'] = self._label_scaler.unscale(data['y'].cpu()).tolist()
+        data['tracker_suffixes'] = [
             [player.tracker_suffix for player in meta.player_order]
-            for meta in kwargs['meta']
+            for meta in data['meta']
         ]
-        del kwargs['meta']
-        return json.dumps(kwargs)
+        del data['meta']
+        return self._make_client_message("training_epoch", data)
 
     def _on_epoch_finish(self, **kwargs):
-        self._server.process_message(
+        self._server.send_message_to_clients(
             kwargs, self._prepare_training_info_for_broadcast
         )
         return self._training_should_continue

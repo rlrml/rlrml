@@ -1,14 +1,27 @@
 import React from 'react';
+import _ from 'lodash';
 
 const WebSocketContext = React.createContext(null);
 
 const WebSocketProvider = ({ children }) => {
-  const [lossHistory, setLossHistory] = React.useState([]);
-  const [gameInfo, setGameInfo] = React.useState({});
   const [connectionStatus, setConnectionStatus] = React.useState('disconnected');
   const [webSocketAddress, setWebSocketAddress] = React.useState(null);
   const [webSocket, setWebSocket] = React.useState(null);
+
+  const [lossHistory, setLossHistory] = React.useState([]);
+  const [gameInfo, setGameInfo] = React.useState({});
+
+  const [configuration, setConfiguration] = React.useState({});
   let socket;
+
+  const handleTrainingEpoch = (data) => {
+    setLossHistory(prevLossHistory => [...prevLossHistory, data.loss]);
+    setGameInfo(prevGameInfo => ({...prevGameInfo, ...getGameInfo(data)}));
+  };
+
+  const messageTypeToHandler = {
+    "training_epoch": handleTrainingEpoch,
+  };
 
   React.useEffect(() => {
     if (!webSocketAddress) {
@@ -27,9 +40,12 @@ const WebSocketProvider = ({ children }) => {
     };
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setLossHistory(prevLossHistory => [...prevLossHistory, data.loss]);
-      setGameInfo(prevGameInfo => ({...prevGameInfo, ...getGameInfo(data)}));
+      const message = JSON.parse(event.data);
+      if (message.type in messageTypeToHandler) {
+        messageTypeToHandler[message.type](message.data);
+      } else {
+        console.log(`Unable to handle message of type ${message.type}`)
+      }
     };
 
 	socket.onclose = () => {
@@ -54,40 +70,16 @@ const WebSocketProvider = ({ children }) => {
 function getGameInfo(data) {
   return Object.fromEntries(data.uuids.map((uuid, index) => [uuid, {
     "uuid": uuid,
+    "players": _.zipObject(
+      ["tracker_suffix", "mmr", "prediction"],
+      [data.tracker_suffixes[index], data.y[index], data.y_pred[index]]
+    ),
     "y": data.y[index],
     "y_pred": data.y_pred[index],
     "y_loss": data.y_loss[index],
     "tracker_suffixes": data.tracker_suffixes[index],
     "update_epoch": data.epoch,
   }]));
-}
-
-function getLossStats(arr1, arr2) {
-  // Calculate MSE
-  const squaredDifferences = arr1.map((value, index) => Math.pow(value - arr2[index], 2));
-  const mse = squaredDifferences.reduce((sum, value) => sum + value, 0) / arr1.length;
-
-  // Find element with the largest difference
-  let maxDiff = 0;
-  let maxDiffIndex = -1;
-  for (let i = 0; i < arr1.length; i++) {
-    const diff = Math.abs(arr1[i] - arr2[i]);
-    if (diff > maxDiff) {
-      maxDiff = diff;
-      maxDiffIndex = i;
-    }
-  }
-
-  return { mse, maxDiff, maxDiffIndex };
-}
-
-function formatArrayWithIndex(array, separator = " | ") {
-  const formattedValues = array.map((value, index) => {
-    const truncatedValue = Math.trunc(value);
-    return `${index + 1}: ${truncatedValue}`;
-  });
-
-  return formattedValues.join(separator);
 }
 
 export { WebSocketContext, WebSocketProvider };
