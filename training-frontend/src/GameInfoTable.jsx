@@ -81,6 +81,10 @@ function meanAbsoluteError(y_true, y_pred) {
 
 const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 
+function ballchasingURL(uuid) {
+	return `https://ballchasing.com/replay/${uuid}`
+}
+
 const GameInfoTable = () => {
 	const [sorting, setSorting] = React.useState([]);
 
@@ -90,17 +94,13 @@ const GameInfoTable = () => {
 		() => [
 			{
 				header: 'UUID',
-				accessorFn: row => row.uuid.substring(0, 8) ,
+				accessorFn: row => <a href={ballchasingURL(row.uuid)}>{row.uuid.substring(0, 8)}</a>,
+				cell: row => row.getValue(),
 			},
 			{
 				header: 'Players',
 				accessorFn: formattedPlayerToPrediction,
 				cell: row => row.getValue(),
-			},
-			{
-				header: 'Players2',
-				accessorFn: formattedPlayerToPrediction,
-				cell: row => console.log(row),
 			},
 			{
 				header: 'Upd. Ep.',
