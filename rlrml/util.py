@@ -1,11 +1,16 @@
+import argparse
 import boxcars_py
 import datetime
+import logging
 import os
 
 from collections import deque
 
 from . import player_cache as pc
 from . import _replay_meta
+
+
+logger = logging.getLogger(__name__)
 
 
 def _constant_retry(constant):
@@ -191,3 +196,43 @@ class ReplayPositionRescaler:
 
 
 HorribleHackScaler = ManualLinearScaler(300.0, 1800.0, -3.0, 4.5)
+
+
+def get_argparse_settable_variables(parser: argparse.ArgumentParser):
+    destination_to_info = {}
+
+    def set_from_attr(config_property_info, action, key, attr=None):
+        if attr is None:
+            attr = key
+        value = getattr(action, attr)
+        if (
+                config_property_info.get(key) is not None and
+                config_property_info.get(key) != argparse.SUPPRESS and
+                value is not None
+        ):
+            current = config_property_info[key]
+            if current != value:
+                logger.warn(f"Mismatch '{attr}': {value} , existing {current}")
+        elif key not in config_property_info or value is not None:
+            config_property_info[key] = value
+
+    simple_sets = ["type", "choices", "default", "dest"]
+    for action in parser._actions:
+        destination_to_info.setdefault(action.dest, dict())
+        config_property_info = destination_to_info[action.dest]
+        for key in simple_sets:
+            set_from_attr(config_property_info, action, key)
+        config_property_info.setdefault('consts', []).append(action.const)
+
+    for value in destination_to_info.values():
+        if value['type'] is None:
+            if all(v is True or v is False for v in value['consts']):
+                value['type'] = bool
+                value['choices'] = [True, False]
+            elif value['default'] is not None:
+                value['type'] = type(value['default'])
+        del value['consts']
+
+    del destination_to_info['help']
+
+    return destination_to_info
