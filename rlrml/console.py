@@ -215,7 +215,10 @@ class _RLRMLBuilder:
 
     @classmethod
     def _setup_default_logging(cls):
-        coloredlogs.install(level='INFO', logger=logger)
+        coloredlogs.install(
+            level='INFO', logger=logger,
+            fmt='%(asctime)s %(name)s %(levelname)s %(message)s'
+        )
         logger.setLevel(logging.INFO)
 
     @classmethod
