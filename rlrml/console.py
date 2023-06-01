@@ -631,9 +631,20 @@ def manual_override(builder: _RLRMLBuilder):
 def delete_if_less_than(builder: _RLRMLBuilder):
     deleted = 0
     fine = 0
-    for uuid, tensor, labels in builder.torch_dataset.iter_with_uuid():
-        game_length = tensor.shape[0]
-        if game_length < 1500:
+    for i in range(len(builder.torch_dataset)):
+        delete_game = False
+        try:
+            training_data = builder.torch_dataset[i]
+        except Exception as e:
+            uuid = builder.torch_dataset._replay_ids[i]
+            logger.warn(f"Deleting game because of {e}")
+            delete_game = True
+        else:
+            game_length = training_data.X.tensor.shape[0]
+            if game_length < 1500:
+                delete_game = True
+                uuid = training_data.uuids
+        if delete_game:
             path = builder.cached_directory_replay_set.replay_path(uuid)
             deleted += 1
             os.remove(path)

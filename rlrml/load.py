@@ -249,7 +249,7 @@ class ReplayDataset(Dataset):
     def __init__(
             self, replay_set: ReplaySet, lookup_label, playlist,
             header_info, label_scaler=util.HorribleHackScaler,
-            preload=False, zero_is_missing=True
+            preload=False, zero_is_missing=True, skip_exceptions=False
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set
@@ -260,6 +260,7 @@ class ReplayDataset(Dataset):
         self._label_cache = {}
         self._label_scaler = label_scaler
         self._zero_is_missing = zero_is_missing
+        self._skip_exceptions = skip_exceptions
         if preload:
             for i in range(len(self._replay_ids)):
                 self[i]
@@ -304,6 +305,12 @@ class ReplayDataset(Dataset):
         self._label_cache[uuid] = result
         return result
 
+    def bust_label_cache(self, uuid=None):
+        if uuid is not None:
+            del self._label_cache[uuid]
+        else:
+            self._label_cache = {}
+
     def __len__(self):
         """Simply return the length of the replay ids calculated in init."""
         return len(self._replay_ids)
@@ -319,8 +326,11 @@ class ReplayDataset(Dataset):
         try:
             replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
         except Exception as e:
-            logger.warn(f"Hit exception {e} on {uuid}")
-            return self.get_with_uuid(index + 1)
+            if self._skip_exceptions:
+                logger.warn(f"Hit exception {e} on {uuid}")
+                return self.get_with_uuid(index + 1)
+            else:
+                raise e
         labels, mask = self._get_replay_labels(uuid, meta)
 
         return TrainingData(
