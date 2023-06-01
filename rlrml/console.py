@@ -674,9 +674,11 @@ def websocket_host(builder: _RLRMLBuilder):
         "localhost", 5002, builder.trainer, builder.label_scaler
     )
 
-    import time
+    import sys
     while True:
-        time.sleep(100)
+        result = input("Type 'exit' to stop\n")
+        if 'exit' in result:
+            sys.exit()
 
 
 def migrate_cache_raw(source_cache: pc.PlayerCache, dest_cache: pc.PlayerCache):
