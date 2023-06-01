@@ -1,11 +1,11 @@
 // WebSocketControls.js
-import React, { useContext, useState } from 'react';
+import React from 'react';
 import { WebSocketContext } from './WebSocketContext';
 
 const WebSocketControls = () => {
-    const { setWebSocketAddress, connectionStatus, webSocket } = useContext(WebSocketContext);
+    const { setWebSocketAddress, connectionStatus, webSocket } = React.useContext(WebSocketContext);
 
-	const [address, setAddress ] = useState('ws://localhost:5002');
+	const [address, setAddress ] = React.useState('ws://localhost:5002');
 
     const handleClickToggle = () => {
         console.log(webSocket);

@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 const WebSocketContext = React.createContext(null);
 
 const WebSocketProvider = ({ children }) => {
-  const [lossHistory, setLossHistory] = useState([]);
-  const [gameInfo, setGameInfo] = useState({});
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [webSocketAddress, setWebSocketAddress] = useState(null);
-  const [webSocket, setWebSocket] = useState(null);
+  const [lossHistory, setLossHistory] = React.useState([]);
+  const [gameInfo, setGameInfo] = React.useState({});
+  const [connectionStatus, setConnectionStatus] = React.useState('disconnected');
+  const [webSocketAddress, setWebSocketAddress] = React.useState(null);
+  const [webSocket, setWebSocket] = React.useState(null);
   let socket;
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!webSocketAddress) {
       return;
     }
@@ -50,7 +50,13 @@ const WebSocketProvider = ({ children }) => {
 };
 
 function getGameInfo(data) {
-	return data.game_info
+  return Object.fromEntries(data.uuids.map((uuid, index) => [uuid, {
+    "uuid": uuid,
+    "y": data.y[index],
+    "y_pred": data.y_pred[index],
+    "y_loss": data.y_loss[index],
+    "update_epoch": data.epoch,
+  }]));
 }
 
 function getLossStats(arr1, arr2) {

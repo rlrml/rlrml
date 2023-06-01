@@ -1,17 +1,17 @@
 import Chart from 'chart.js/auto';
 import {CategoryScale} from 'chart.js';
 
-import React, { useContext, useState, useEffect } from 'react';
+import React from 'react';
 import { Line } from 'react-chartjs-2';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { WebSocketContext } from './WebSocketContext';
 
 const LossChart = () => {
-    const { lossHistory } = useContext(WebSocketContext);
+    const { lossHistory } = React.useContext(WebSocketContext);
 
 	// Controls the resolution of the graph
-    const [bucketSize, setBucketSize] = useState(10);
+    const [bucketSize, setBucketSize] = React.useState(10);
 
 	// A function to calculate bucketed average
     const calculateBucketedAverage = (data, bucketSize) => {
@@ -28,9 +28,9 @@ const LossChart = () => {
     };
 
 	// State variable for bucketedLoss
-    const [bucketedLossHistory, setBucketedLossHistory] = useState([]);
+    const [bucketedLossHistory, setBucketedLossHistory] = React.useState([]);
 
-	useEffect(() => {
+	React.useEffect(() => {
         const bucketedData = calculateBucketedAverage(lossHistory, bucketSize);
         setBucketedLossHistory(bucketedData);
 
@@ -57,7 +57,7 @@ const LossChart = () => {
 
     return (
         <div>
-            Bucket Size: 
+            Bucket Size:
             <input type="text" onChange={handleBucketSizeChange}
                    placeholder="Enter Bucket Size" />
             <div style={{ margin: '50px' }}>
