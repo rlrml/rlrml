@@ -30,7 +30,10 @@ class ReplaySetAssesor:
 
         @property
         def ready(self):
-            return not any(mmr is None or mmr == 0 for _, mmr in self.score_info.estimates)
+            return not any(
+                mmr is None or mmr == 0
+                for _, mmr in self.score_info.estimates
+            )
 
     class FailedStatus(ReplayStatus, Exception):
         ready = False
@@ -59,10 +62,11 @@ class ReplaySetAssesor:
         self._ipdb_on_exception = ipdb_on_exception
 
     def get_replay_statuses(self):
-        return {
-            uuid: self._get_replay_status(uuid)
-            for uuid in self._replay_set.get_replay_uuids()
-        }
+        return dict(self.yield_replay_statuses())
+
+    def yield_replay_statuses(self):
+        for uuid in self._replay_set.get_replay_uuids():
+            yield uuid, self._get_replay_status(uuid)
 
     def get_replay_statuses_by_rank(self):
         replay_statuses = self.get_replay_statuses()
@@ -128,7 +132,8 @@ class ReplaySetAssesor:
     def _get_replay_status(self, uuid, require_headers=True):
         meta = None
         if (
-                isinstance(self._replay_set, load.CachedReplaySet) and not self._always_load_tensor
+                isinstance(self._replay_set, load.CachedReplaySet) and
+                not self._always_load_tensor
         ):
             meta = self._replay_set.get_replay_meta(uuid)
             if require_headers and meta is not None and not meta.headers:

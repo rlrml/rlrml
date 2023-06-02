@@ -341,6 +341,14 @@ class _RLRMLBuilder:
         )
 
     @functools.cached_property
+    def assessor(self):
+        return assess.ReplaySetAssesor(
+            self.cached_directory_replay_set,
+            scorer=self.player_mmr_estimate_scorer,
+            playlist=self.playlist
+        )
+
+    @functools.cached_property
     def lookup_label(self):
         def get_player_label(player, date):
             if isinstance(date, datetime.datetime):
@@ -489,16 +497,51 @@ class _RLRMLBuilder:
         return wrapped
 
 
-@_RLRMLBuilder.with_default
+@_RLRMLBuilder.add_args("target_path", "min_disparity")
 def load_game_dataset(builder: _RLRMLBuilder):
     """Convert the game provided through sys.argv."""
-    assesor = assess.ReplaySetAssesor(
-        builder.cached_directory_replay_set,
-        scorer=builder.player_mmr_estimate_scorer,
-        playlist=builder.playlist
+    existing_uuids = set(
+        uuid for uuid, _ in util.get_replay_uuids_in_directory(builder.args.target_path)
     )
-    results = assesor.get_replay_statuses_by_rank(load_tensor=False)
-    import ipdb; ipdb.set_trace()
+    logger.info(builder.args.mmr_required_for_all_but)
+    builder.torch_dataset._skip_exceptions = False
+    min_disparity = int(builder.args.min_disparity)
+    for uuid, status in builder.assessor.yield_replay_statuses():
+        if uuid in existing_uuids:
+            continue
+
+        if not isinstance(status, builder.assessor.ScoreInfoStatus):
+            logger.info(f"{uuid} failed {status}")
+            continue
+
+        non_zero_estimates = [
+            e for _, e in status.score_info.estimates
+            if e not in (None, 0)
+        ]
+
+        if len(non_zero_estimates) < (
+                len(status.score_info.estimates) - builder.args.mmr_required_for_all_but
+        ):
+            logger.info(f"Skipping {uuid} because it has too many 0 estimates")
+            continue
+
+        max_estimate = max(non_zero_estimates)
+        min_estimate = min(non_zero_estimates)
+
+        if max_estimate - min_estimate >= min_disparity:
+            try:
+                builder.cached_directory_replay_set.get_replay_tensor(uuid)
+            except Exception as e:
+                logger.warn(f"Skipping {uuid} because tensor failed to load: {e}")
+                continue
+
+            target_path = os.path.join(
+                builder.args.target_path, f"{uuid}.replay"
+            )
+            current_path = builder.cached_directory_replay_set.replay_path(uuid)
+            logger.info(f"Symlinking {uuid} {non_zero_estimates}")
+            if not os.path.exists(target_path):
+                os.symlink(current_path, target_path)
 
 
 @_RLRMLBuilder.add_args("target_directory")
