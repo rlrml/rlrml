@@ -33,8 +33,8 @@ function getLargestMiss(row) {
 	return Math.trunc(Math.max(...deltas))
 }
 
-function getLargestDelta(row) {
-	let excludingMasked = _.zip(row.y, row.masks).filter((v) => v[1] != 0).map((v) => v[0]);
+function getLargestDelta(arr, masks) {
+	let excludingMasked = _.zip(arr, masks).filter((v) => v[1] != 0).map((v) => v[0]);
 	let max = Math.max(...excludingMasked);
 	let min = Math.min(...excludingMasked);
 	return Math.trunc(max - min);
@@ -111,11 +111,15 @@ const GameInfoTable = () => {
 			},
 			{
 				header: '> Delt',
-				accessorFn: getLargestDelta,
+				accessorFn: row => getLargestDelta(row.y, row.masks),
 			},
 			{
-				header: 'MSE',
-				accessorFn: row => Math.trunc(meanSquaredError(row.y_pred, row.y, row.masks)),
+				header: '> Pred Delt',
+				accessorFn: row => getLargestDelta(row.y_pred, row.masks),
+			},
+			{
+				header: 'RMSE',
+				accessorFn: row => Math.trunc(Math.sqrt(meanSquaredError(row.y_pred, row.y, row.masks))),
 			},
 			{
 				header: 'MAE',
@@ -125,6 +129,14 @@ const GameInfoTable = () => {
 				header: 'Mask',
 				accessorFn: row => row.masks.reduce((a, b) => a + b, 0),
 			},
+			{
+				header: 'MMR',
+				accessorFn: row => Math.trunc(_.sum(row.y) / row.y.length),
+			},
+			{
+				header: 'Loss',
+				accessorFn: row => Math.trunc(_.sum(row.y_loss) / row.y_loss.length)
+			}
 		],
 		[trainingPlayerCount]
 	);

@@ -46,7 +46,7 @@ const WebSocketProvider = ({ children }) => {
     "loss_batch": handleLossBatch,
   };
 
-  const processGameData = (data, uuid, tracker_suffixes, y, y_pred, masks) => {
+  const processGameData = (data, uuid, tracker_suffixes, y, y_pred, masks, y_loss) => {
     return [uuid, {
       "uuid": uuid,
       "players": _.zipWith(
@@ -58,12 +58,16 @@ const WebSocketProvider = ({ children }) => {
       y_pred,
       y,
       masks,
+      y_loss,
       "update_epoch": data.epoch,
     }]
   }
 
   const getGameInfo = (data) => {
-    const zipped = _.zip(data.uuids, data.tracker_suffixes, data.y, data.y_pred, data.mask);
+    const zipped = _.zip(
+      data.uuids, data.tracker_suffixes, data.y,
+      data.y_pred, data.mask, data.y_loss
+    );
     return Object.fromEntries(zipped.map((args) => processGameData(data, ...args)));
   }
 
