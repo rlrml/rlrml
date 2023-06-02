@@ -40,6 +40,27 @@ const WebSocketProvider = ({ children }) => {
     "training_start": handleTrainingStart,
   };
 
+  const processGameData = (data, uuid, tracker_suffixes, y, y_pred, masks) => {
+    return [uuid, {
+      "uuid": uuid,
+      "players": _.zipWith(
+        tracker_suffixes, y, y_pred, masks,
+        (tracker_suffix, mmr, prediction, mask) => {
+          return {tracker_suffix, mmr, prediction, mask};
+        }
+      ),
+      y_pred,
+      y,
+      masks,
+      "update_epoch": data.epoch,
+    }]
+  }
+
+  const getGameInfo = (data) => {
+    const zipped = _.zip(data.uuids, data.tracker_suffixes, data.y, data.y_pred, data.mask);
+    return Object.fromEntries(zipped.map((args) => processGameData(data, ...args)));
+  }
+
   React.useEffect(() => {
     if (!webSocketAddress) {
       return;
@@ -83,26 +104,5 @@ const WebSocketProvider = ({ children }) => {
     </WebSocketContext.Provider>
   );
 };
-
-function processGameData(data, uuid, tracker_suffixes, y, y_pred, masks) {
-  return [uuid, {
-    "uuid": uuid,
-    "players": _.zipWith(
-      tracker_suffixes, y, y_pred, masks,
-      (tracker_suffix, mmr, prediction, mask) => {
-        return {tracker_suffix, mmr, prediction, mask};
-      }
-    ),
-    y_pred,
-    y,
-    masks,
-    "update_epoch": data.epoch,
-  }]
-}
-
-function getGameInfo(data) {
-  const zipped = _.zip(data.uuids, data.tracker_suffixes, data.y, data.y_pred, data.mask);
-  return Object.fromEntries(zipped.map((args) => processGameData(data, ...args)));
-}
 
 export { WebSocketContext, WebSocketProvider };

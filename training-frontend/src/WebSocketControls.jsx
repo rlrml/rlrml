@@ -5,7 +5,7 @@ import { WebSocketContext } from './WebSocketContext';
 const WebSocketControls = () => {
     const { setWebSocketAddress, connectionStatus, webSocket, makeWebsocketRequest } = React.useContext(WebSocketContext);
 
-	const [address, setAddress ] = React.useState('ws://localhost:5002');
+	const [address, setAddress] = React.useState('ws://localhost:5002');
 
     const handleClickStart = () => {
         makeWebsocketRequest('start_training')
