@@ -3,7 +3,9 @@ import React from 'react';
 import { WebSocketContext } from './WebSocketContext';
 
 const WebSocketControls = () => {
-    const { setWebSocketAddress, connectionStatus, webSocket, makeWebsocketRequest } = React.useContext(WebSocketContext);
+    const {
+        setWebSocketAddress, connectionStatus, makeWebsocketRequest
+    } = React.useContext(WebSocketContext);
 
 	const [address, setAddress] = React.useState('ws://localhost:5002');
 

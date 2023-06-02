@@ -1,11 +1,9 @@
 import React from 'react';
 import { WebSocketContext } from './WebSocketContext';
 import {
-  ColumnDef,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
-  SortingState,
   useReactTable,
 } from '@tanstack/react-table';
 import { Link } from "react-router-dom";
@@ -16,7 +14,7 @@ function getPlayerCellContents(player) {
 	const predicted = Math.trunc(Number(player.prediction)).toString().padStart(4, '0');
 	const playerText = player.tracker_suffix.split('/')[1].substring(0, 10).padStart(10, ' ');
 	const trackerLinkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
-	const predictedColor = player.mask == 0 ? "grey" : "black";
+	const predictedColor = player.mask === 0 ? "grey" : "black";
 	return (
 		<span>
 			<Link to={`/player_detail/${player.tracker_suffix}`}>{playerText}
@@ -34,7 +32,7 @@ function getLargestMiss(row) {
 }
 
 function getLargestDelta(arr, masks) {
-	let excludingMasked = _.zip(arr, masks).filter((v) => v[1] != 0).map((v) => v[0]);
+	let excludingMasked = _.zip(arr, masks).filter((v) => v[1] !== 0).map((v) => v[0]);
 	let max = Math.max(...excludingMasked);
 	let min = Math.min(...excludingMasked);
 	return Math.trunc(max - min);

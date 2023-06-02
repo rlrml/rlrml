@@ -3,7 +3,6 @@ import {CategoryScale} from 'chart.js';
 
 import React from 'react';
 import { Line } from 'react-chartjs-2';
-import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { WebSocketContext } from './WebSocketContext';
 

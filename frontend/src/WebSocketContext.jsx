@@ -14,7 +14,6 @@ const WebSocketProvider = ({ children }) => {
   const [trainingPlayerCount, setTrainingPlayerCount] = React.useState(4);
 
   const [configuration, setConfiguration] = React.useState({});
-  let socket;
 
   const handleLossBatch = (data) => {
     const newData = getGameInfo(data);
@@ -76,7 +75,7 @@ const WebSocketProvider = ({ children }) => {
       return;
     }
 
-    socket = new WebSocket(webSocketAddress)
+    let socket = new WebSocket(webSocketAddress)
     setWebSocket(socket);
 
     socket.onopen = () => {

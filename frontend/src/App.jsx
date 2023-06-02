@@ -4,7 +4,7 @@ import LossAnalysisPage from './LossAnalysisPage';
 import GameDetailPage from './GameDetailPage';
 import PlayerDetailPage from './PlayerDetailPage';
 import { WebSocketProvider } from './WebSocketContext';
-import { BrowserRouter as BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import NavBar from './NavBar';
 
 function App() {
