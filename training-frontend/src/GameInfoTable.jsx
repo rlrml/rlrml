@@ -15,10 +15,12 @@ function getPlayerCellContents(player) {
 	const actual = Math.trunc(Number(player.mmr)).toString().padStart(4, '0');
 	const predicted = Math.trunc(Number(player.prediction)).toString().padStart(4, '0');
 	const playerText = player.tracker_suffix.split('/')[1].substring(0, 10).padStart(10, ' ');
-	const linkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
+	const trackerLinkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
+	const predictedColor = player.mask == 0 ? "grey" : "black";
 	return (
 		<span>
-			{playerText} - <a href={linkTarget}>{actual}</a> ({predicted})
+			<Link to={`/player_detail/${player.tracker_suffix}`}>{playerText}
+			</Link> - <a href={trackerLinkTarget}>{actual}</a> <span style={{ color: predictedColor }}>({predicted})</span>
 		</span>
 	);
 }

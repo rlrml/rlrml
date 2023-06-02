@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 
-const TrainingSessionPage = () => {
+const GameDetailPage = () => {
 	const { uuid } = useParams()
     return (
         <div>
@@ -9,4 +9,4 @@ const TrainingSessionPage = () => {
     );
 }
 
-export default TrainingSessionPage;
+export default GameDetailPage;
