@@ -17,7 +17,8 @@ const WebSocketProvider = ({ children }) => {
 
   const handleTrainingEpoch = (data) => {
     setLossHistory(prevLossHistory => [...prevLossHistory, data.loss]);
-    setGameInfo(prevGameInfo => ({...prevGameInfo, ...getGameInfo(data)}));
+    const newData = getGameInfo(data);
+    setGameInfo(prevGameInfo => ({...prevGameInfo, ...newData}));
   };
 
   const handleTrainingStart = (data) => {
@@ -82,21 +83,25 @@ const WebSocketProvider = ({ children }) => {
   );
 };
 
-function getGameInfo(data) {
-  return Object.fromEntries(data.uuids.map((uuid, index) => [uuid, {
+function processGameData(data, uuid, tracker_suffixes, y, y_pred, masks) {
+  return [uuid, {
     "uuid": uuid,
     "players": _.zipWith(
-      data.tracker_suffixes[index], data.y[index], data.y_pred[index],
-      (tracker_suffix, mmr, prediction) => {
-        return {tracker_suffix, mmr, prediction};
+      tracker_suffixes, y, y_pred, masks,
+      (tracker_suffix, mmr, prediction, mask) => {
+        return {tracker_suffix, mmr, prediction, mask};
       }
     ),
-    "y": data.y[index],
-    "y_pred": data.y_pred[index],
-    "y_loss": data.y_loss[index],
-    "tracker_suffixes": data.tracker_suffixes[index],
+    y_pred,
+    y,
+    masks,
     "update_epoch": data.epoch,
-  }]));
+  }]
+}
+
+function getGameInfo(data) {
+  const zipped = _.zip(data.uuids, data.tracker_suffixes, data.y, data.y_pred, data.mask);
+  return Object.fromEntries(zipped.map((args) => processGameData(data, ...args)));
 }
 
 export { WebSocketContext, WebSocketProvider };

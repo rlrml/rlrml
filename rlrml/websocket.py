@@ -115,7 +115,7 @@ class FrontendManager:
             return
         self._training_should_continue = True
         self._training_thread = Thread(
-            target=self._train, kwargs=message.get("args", {}), daemon=True
+            target=self._train, kwargs=message, daemon=True
         )
         self._server.send_message_to_clients(
             self._make_client_message(
@@ -143,6 +143,7 @@ class FrontendManager:
         data['y_loss'] = np.sqrt(self._label_scaler.unscale_no_translate(
             data['y_loss'].cpu()
         )).tolist()
+        data['mask'] = data['mask'].cpu().tolist()
         data['y_pred'] = self._label_scaler.unscale(data['y_pred'].cpu()).tolist()
         data['y'] = self._label_scaler.unscale(data['y'].cpu()).tolist()
         data['tracker_suffixes'] = [

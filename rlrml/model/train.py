@@ -65,7 +65,7 @@ class ReplayModelManager:
                     trainer=self, epoch=epoch, loss=float(mean_loss.detach()),
                     y_pred=y_pred.detach(), y=training_data.y.detach(),
                     uuids=training_data.uuids, y_loss=loss.detach(),
-                    meta=training_data.meta
+                    meta=training_data.meta, mask=training_data.mask.detach(),
                 )
                 if should_continue is not None and not should_continue:
                     return

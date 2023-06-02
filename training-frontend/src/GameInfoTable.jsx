@@ -24,63 +24,66 @@ function getPlayerCellContents(player) {
 }
 
 function getLargestMiss(row) {
-	let pairs = zip(row.y, row.y_pred);
+	let pairs = _.zip(row.y, row.y_pred, row.masks);
 	let deltas = pairs.map(
-		v => Math.abs(v[0] - v[1]),
+		v => v[2] === 0 ? 0 : Math.abs(v[0] - v[1]),
 	)
 	return Math.trunc(Math.max(...deltas))
 }
 
 function getLargestDelta(row) {
-	let max = Math.max(...row.y);
-	let min = Math.min(...row.y);
+	let excludingMasked = _.zip(row.y, row.masks).filter((v) => v[1] != 0).map((v) => v[0]);
+	let max = Math.max(...excludingMasked);
+	let min = Math.min(...excludingMasked);
 	return Math.trunc(max - min);
 }
 
-function meanSquaredError(y_true, y_pred) {
-  let sum = 0;
-  let length = y_true.length;
+function meanSquaredError(y_true, y_pred, mask) {
+	let sum = 0;
+	let length = mask.reduce((a, b) => a + b, 0);
 
-  // Check if lengths of arrays are the same
-  if (length !== y_pred.length) {
-    throw new Error("Arrays should have the same length.");
-  }
+	// Check if lengths of arrays are the same
+	if (length !== y_pred.length) {
+		throw new Error("Arrays should have the same length.");
+	}
 
-  for (let i = 0; i < length; i++) {
-    let diff = y_true[i] - y_pred[i];
-    sum += diff * diff;
-  }
+	for (let i = 0; i < length; i++) {
+		if (mask[i] === 0) {
+			continue
+		}
+		let diff = y_true[i] - y_pred[i];
+		sum += diff * diff;
+	}
 
-  return sum / length;
+	return sum / length;
 }
 
-function meanAbsoluteError(y_true, y_pred) {
-  let sum = 0;
-  let length = y_true.length;
+function meanAbsoluteError(y_true, y_pred, mask) {
+	let sum = 0;
+	let length = mask.reduce((a, b) => a + b, 0);
 
-  // Check if lengths of arrays are the same
-  if (length !== y_pred.length) {
-    throw new Error("Arrays should have the same length.");
-  }
+	// Check if lengths of arrays are the same
+	if (length !== y_pred.length) {
+		throw new Error("Arrays should have the same length.");
+	}
 
-  for (let i = 0; i < length; i++) {
-    let diff = Math.abs(y_true[i] - y_pred[i]);
-    sum += diff;
-  }
+	for (let i = 0; i < length; i++) {
+		if (mask[i] === 0) {
+			continue
+		}
+		let diff = Math.abs(y_true[i] - y_pred[i]);
+		sum += diff;
+	}
 
-  return sum / length;
+	return sum / length;
 }
-
-const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 
 function ballchasingURL(uuid) {
 	return `https://ballchasing.com/replay/${uuid}`
 }
 
 const GameInfoTable = () => {
-	const [sorting, setSorting] = React.useState([]);
-
-	const { gameInfo, trainingPlayerCount } = React.useContext(WebSocketContext);
+	const { gameInfo, trainingPlayerCount, sorting, setSorting } = React.useContext(WebSocketContext);
 
 	const columns = React.useMemo(
 		() => [
@@ -120,12 +123,16 @@ const GameInfoTable = () => {
 			},
 			{
 				header: 'MSE',
-				accessorFn: row => Math.trunc(meanSquaredError(row.y_pred, row.y)),
+				accessorFn: row => Math.trunc(meanSquaredError(row.y_pred, row.y, row.masks)),
 			},
 			{
 				header: 'MAE',
-				accessorFn: row => Math.trunc(meanAbsoluteError(row.y_pred, row.y)),
-			}
+				accessorFn: row => Math.trunc(meanAbsoluteError(row.y_pred, row.y, row.masks)),
+			},
+			{
+				header: 'Mask',
+				accessorFn: row => row.masks.reduce((a, b) => a + b, 0),
+			},
 		],
 		[trainingPlayerCount]
 	);
