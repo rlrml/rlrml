@@ -137,7 +137,10 @@ def run():
     )
 
     if args.logs:
-        coloredlogs.install(level='INFO', logger=replay_downloader.logger)
+        coloredlogs.install(
+            level='INFO', logger=replay_downloader.logger,
+            fmt='%(asctime)s %(name)s %(levelname)s %(message)s'
+        )
         replay_downloader.logger.setLevel(logging.INFO)
 
     query_params = dict(args.query)

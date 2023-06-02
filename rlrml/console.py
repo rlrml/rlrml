@@ -74,13 +74,18 @@ def _add_rlrml_args(parser=None):
         '--player-cache',
         help="The directory where the player cache can be found.",
         type=Path,
-        default=defaults['player-cache']
+        default=defaults.get('player-cache', '~/.local/share/rlrml/player_cache')
     )
     parser.add_argument(
         '--replay-path',
         help="The directory where game files are stored.",
         type=Path,
-        default=defaults.get('replay-path')
+        default=defaults.get('replay-path', '~/.local/share/rlrml/replays')
+    )
+    parser.add_argument(
+        '--num-workers',
+        type=int,
+        default=0
     )
     parser.add_argument(
         '--preload',
@@ -92,7 +97,7 @@ def _add_rlrml_args(parser=None):
         '--tensor-cache',
         help="The directory where the tensor cache is held",
         type=Path,
-        default=defaults.get('tensor-cache')
+        default=defaults.get('tensor-cache', '~/.local/share/rlrml/tensor_cache')
     )
     parser.add_argument(
         '--playlist',
@@ -174,7 +179,14 @@ def _add_rlrml_args(parser=None):
     parser.add_argument(
         '--device',
         type=str,
-        default=defaults.get('device', 'cuda')
+        default=defaults.get('device', 'cuda'),
+    )
+
+    parser.add_argument(
+        '--log-level',
+        choices=logging._levelToName.values(),
+        type=str,
+        default=defaults.get('log-level', 'INFO')
     )
     parser.add_argument('--bcf-args', default=defaults.get("boxcar-frames-arguments"))
     parser.add_argument(
@@ -319,7 +331,8 @@ class _RLRMLBuilder:
     @functools.cached_property
     def player_mmr_estimate_scorer(self):
         return score.MMREstimateScorer(
-            self.cached_get_player_data, truncate_lowest_count=self.args.mmr_required_for_all_but
+            self.cached_get_player_data,
+            truncate_lowest_count=self.args.mmr_required_for_all_but
         )
 
     @functools.cached_property
@@ -409,11 +422,18 @@ class _RLRMLBuilder:
         return self.args.loss_type.get_fn_from_args(**self.args.loss_params)
 
     @functools.cached_property
+    def data_loader(self):
+        return load.batched_packed_loader(
+            self.torch_dataset, batch_size=self.args.batch_size,
+            num_workers=self.args.num_workers
+        )
+
+    @functools.cached_property
     def trainer(self):
-        return train.ReplayModelManager.from_dataset(
-            self.torch_dataset, model=self.model,
+        return train.ReplayModelManager(
+            data_loader=self.data_loader, model=self.model,
             loss_function=self.loss_function, lr=self.args.learning_rate,
-            batch_size=self.args.batch_size, device=self.device,
+            device=self.device,
         )
 
     @functools.cached_property
@@ -642,7 +662,8 @@ def delete_if_less_than(builder: _RLRMLBuilder):
         if delete_game:
             path = builder.cached_directory_replay_set.replay_path(uuid)
             deleted += 1
-            os.remove(path)
+            if os.path.exists(path):
+                os.remove(path)
         else:
             fine += 1
 
@@ -674,11 +695,11 @@ def lmdb_migrate(builder: _RLRMLBuilder):
     migrate_cache_raw(builder.player_cache, lmdb_cache)
 
 
-@_RLRMLBuilder.with_default
+@_RLRMLBuilder.add_args("port")
 def websocket_host(builder: _RLRMLBuilder):
     websocket.FrontendManager(
-        "localhost", 5002, builder.trainer, builder.label_scaler, builder.player_cache,
-        builder.model, builder.args, _add_rlrml_args()
+        "0.0.0.0", builder.args.port, builder.trainer, builder.label_scaler,
+        builder.player_cache, builder.model, builder, builder.args, _add_rlrml_args()
     )
 
     import sys
