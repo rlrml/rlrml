@@ -3,6 +3,7 @@ import logging
 import itertools
 
 from .. import load
+from ..loss import loss_takes_mask
 from . import build
 
 
@@ -43,6 +44,7 @@ class ReplayModelManager:
         self._loss_function = loss_function or torch.nn.MSELoss()
         self._optimizer = torch.optim.Adam(self._model.parameters(), lr=lr)
         self._accumulation_steps = accumulation_steps
+        self._loss_takes_mask = loss_takes_mask(self._loss_function)
 
     def train(self, epochs=None, on_epoch_finish=log_batch_finish):
         batch_iterator = iter(self._data_loader)
@@ -77,10 +79,16 @@ class ReplayModelManager:
             training_data.mask.to(self._device)
         )
         y_pred = self._model(X)
-        loss = self._loss_function(y_pred, y)
+        loss = (
+            self._loss_function(y_pred, y, mask=mask)
+            if self._loss_takes_mask
+            else self._loss_function(y_pred, y)
+        )
         return y_pred, loss * mask
 
     def process_loss(self, process):
         for batch_number, training_data in enumerate(self._data_loader):
             y_pred, loss_tensor = self.get_loss(training_data)
-            process(training_data, y_pred, loss_tensor)
+            should_continue = process(training_data, y_pred, loss_tensor)
+            if should_continue is not None and not should_continue:
+                return
