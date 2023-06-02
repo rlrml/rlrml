@@ -249,7 +249,7 @@ class ReplayDataset(Dataset):
     def __init__(
             self, replay_set: ReplaySet, lookup_label, playlist,
             header_info, label_scaler=util.HorribleHackScaler,
-            preload=False, zero_is_missing=True, skip_exceptions=False
+            preload=False, zero_is_missing=True, skip_exceptions=True
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set

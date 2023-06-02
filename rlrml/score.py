@@ -27,7 +27,7 @@ class MMREstimateScorer:
             self, get_player_data, season_dates=mmr.TIGHTENED_SEASON_DATES,
             score_game_count=scaled_sigmoid, meta_score=np.prod,
             minimum_games_for_mmr=lambda mmr: 0,
-            mmr_disparity_requires_victory_threshold=75,
+            mmr_disparity_requires_victory_threshold=200,
             truncate_lowest_count=0,
     ):
         self._get_player_data = get_player_data

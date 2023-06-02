@@ -205,4 +205,4 @@ class CachedGetPlayerData:
             player_data["player_metadata"] = meta_dict
             self._player_cache.insert_data_for_player(player_meta, player_data)
 
-        return self._player_cache.get_player_data_no_err(player_meta)
+        return self._player_cache.get_player_data(player_meta)

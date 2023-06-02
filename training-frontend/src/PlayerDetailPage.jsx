@@ -14,7 +14,9 @@ const PlayerDetailPage = () => {
     };
 
 	const handleSetMMRClick = () => {
-		makeWebsocketRequest('player_mmr_override', {tracker_suffix: trackerSuffix, mmr})
+		makeWebsocketRequest(
+			'player_mmr_override', {tracker_suffix: trackerSuffix, mmr}
+		)
 	};
 
     return (
