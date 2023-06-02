@@ -32,6 +32,7 @@ websockets = "^11.0.3"
 [tool.poetry.group.dev.dependencies]
 python-lsp-server = {extras = ["all"], version = "^1.7.1"}
 ipdb = "^0.13.13"
+pytest = "*"
 
 [tool.poetry.scripts]
 load_game_dataset = 'rlrml.console:load_game_dataset'
