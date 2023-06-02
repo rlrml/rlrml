@@ -35,7 +35,9 @@ class MMREstimateScorer:
         self._score_game_count = score_game_count
         self._meta_score = meta_score
         self._minimum_games_for_mmr = minimum_games_for_mmr
-        self._mmr_disparity_requries_victory_threshold = mmr_disparity_requires_victory_threshold
+        self._mmr_disparity_requries_victory_threshold = (
+            mmr_disparity_requires_victory_threshold
+        )
         self._truncate_lowest_count = truncate_lowest_count
 
     def score_replay_meta(

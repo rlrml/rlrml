@@ -1,2 +1,2 @@
 [flake8]
-extend-ignore = D107, D102, D100, D103, E702
+extend-ignore = D107, D102, D100, D103, E702, W504

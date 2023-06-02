@@ -49,10 +49,7 @@ def _rlrml_config_directory():
 def _rlrml_data_directory(config):
     if "data-directory" in config:
         return config["data-directory"]
-    paths = [path for path in xdg_base_dirs.xdg_data_dirs() if not any(
-        "nix" in part for part in path._parts
-    )]
-    return os.path.join(paths[0], "rlrml")
+    return os.path.join(xdg_base_dirs.xdg_data_home(), "rlrml")
 
 
 def _add_rlrml_args(parser=None):
@@ -582,7 +579,7 @@ def train_model(builder: _RLRMLBuilder):
             live_stats = display.TrainLiveStatsDisplay(live, scaler=builder.label_scaler)
             trainer.train(*args, on_epoch_finish=live_stats.on_epoch_finish, **kwargs)
 
-    do_train(10)
+    do_train(1)
     import ipdb; ipdb.set_trace()
 
 
@@ -643,7 +640,8 @@ def calculate_loss(builder: _RLRMLBuilder):
 @_RLRMLBuilder.add_args("tracker_suffix", "mmr")
 def manual_override(builder: _RLRMLBuilder):
     builder.player_cache.insert_manual_override(
-        {"__tracker_suffix__": builder.args.tracker_suffix}, builder.args.mmr
+        metadata.PlatformPlayer.from_tracker_suffix(builder.args.tracker_suffix),
+        builder.args.mmr
     )
 
 
