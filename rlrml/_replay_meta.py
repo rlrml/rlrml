@@ -57,9 +57,18 @@ class PlatformPlayer(abc.ABC, metaclass=_PlatformPlayerType):
     def __eq__(self, other):
         return self.tracker_suffix == other.tracker_suffix
 
+    @classmethod
+    def from_tracker_suffix(cls, tracker_suffix):
+        platform, identifier = tracker_suffix.split('/')
+        return cls.name_to_class[platform].from_tracker_identifier(identifier)
+
     @abc.abstractproperty
     def tracker_identifier(self):
         """The identifier to use to look up the players profile on the tracker network."""
+        pass
+
+    @abc.abstractclassmethod
+    def from_tracker_identifier(cls, identifier):
         pass
 
     @abc.abstractproperty
@@ -141,6 +150,10 @@ class SteamPlayer(PlatformPlayer):
     def tracker_identifier(self):
         return self._online_id
 
+    @classmethod
+    def from_tracker_identifier(cls, identifier):
+        return cls(None, online_id=identifier)
+
     @property
     def name(self):
         return self._display_name
@@ -181,6 +194,10 @@ class _DisplayNameSuffixPlayer(PlatformPlayer):
     @property
     def tracker_identifier(self):
         return self._display_name.replace(" ", "%20")
+
+    @classmethod
+    def from_tracker_identifier(cls, identifier):
+        return cls(identifier.replace("%20", " "))
 
     @property
     def name(self):
