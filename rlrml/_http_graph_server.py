@@ -11,7 +11,7 @@ from . import mmr
 from . import player_cache as pc
 from . import plot
 from .tracker_network import CloudScraperTrackerNetwork
-from . import _replay_meta
+from . import metadata
 
 
 app = Flask(__name__)
@@ -42,7 +42,7 @@ def make_routes(builder):
             for elem in history
         ]
         predictions = [builder.label_scaler.unscale(float(p)) for p in builder.model(x)[0]]
-        meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+        meta = metadata.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
         figure = plot.GameMMRPredictionPlotGenerator(
             python_history,
             [

@@ -7,7 +7,7 @@ import os
 from collections import deque
 
 from . import player_cache as pc
-from . import _replay_meta
+from . import metadata
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def get_replay_uuids_in_directory(filepath, replay_extension="replay"):
 
 
 def player_data_present(replay_path, player_cache: pc.PlayerCache):
-    meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(
+    meta = metadata.ReplayMeta.from_boxcar_frames_meta(
         boxcars_py.get_replay_meta(replay_path)
     )
     return all(player_cache.present_and_no_error(player) for player in meta.player_order)

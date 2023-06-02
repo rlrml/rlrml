@@ -7,7 +7,7 @@ import torch
 import websockets
 
 from threading import Thread
-from . import _replay_meta
+from . import metadata
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ class FrontendManager:
         torch.save(self._model.state_dict(), model_filepath)
 
     def _set_player_mmr_override(self, tracker_suffix, mmr=None, clear=False):
-        player = _replay_meta.PlatformPlayer.from_tracker_suffix(tracker_suffix)
+        player = metadata.PlatformPlayer.from_tracker_suffix(tracker_suffix)
         if clear:
             self._player_cache.remove_manual_override(player)
         self._player_cache.insert_manual_override(player, mmr or None)

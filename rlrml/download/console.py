@@ -13,7 +13,7 @@ from . import sync
 
 from .. import console
 from .. import util
-from .. import _replay_meta
+from .. import metadata
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ def run():
 
     def filter_by_known_miss(replay_meta):
         try:
-            meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
+            meta = metadata.ReplayMeta.from_ballchasing_game(replay_meta)
         except Exception:
             return False
 
@@ -94,7 +94,7 @@ def run():
 
     def filter_by_replay_score(replay_meta):
         try:
-            meta = _replay_meta.ReplayMeta.from_ballchasing_game(replay_meta)
+            meta = metadata.ReplayMeta.from_ballchasing_game(replay_meta)
         except Exception:
             return False
         score_info = builder.player_mmr_estimate_scorer.score_replay_meta(

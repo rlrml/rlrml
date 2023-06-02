@@ -6,7 +6,7 @@ import logging
 import plyvel
 
 from . import tracker_network
-from ._replay_meta import PlatformPlayer
+from .metadata import PlatformPlayer
 
 
 logger = logging.getLogger(__name__)

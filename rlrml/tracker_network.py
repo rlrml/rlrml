@@ -9,7 +9,7 @@ import requests
 from io import BytesIO
 from email.parser import BytesParser
 
-from . import _replay_meta
+from . import metadata
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def get_profile_uri_for_player(player, base_uri=default_tracker_uri):
 
 def get_profile_suffix_for_player(player):
     """Get the suffix to use to generate a players tracker network profile uri."""
-    if isinstance(player, _replay_meta.PlatformPlayer):
+    if isinstance(player, metadata.PlatformPlayer):
         return player.tracker_suffix
 
     if "__tracker_suffix__" in player:

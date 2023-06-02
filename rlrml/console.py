@@ -24,7 +24,7 @@ from . import tracker_network
 from . import util
 from . import loss
 from . import vpn
-from . import _replay_meta
+from . import metadata
 from . import assess
 from . import websocket
 from .model import train, build
@@ -382,7 +382,7 @@ class _RLRMLBuilder:
     def game_to_dictionary(self, filepath, **kwargs):
         meta, data = self.load_game_from_filepath(filepath, **kwargs)
         column_headers = meta['column_headers']
-        meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+        meta = metadata.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
         all_headers = list(column_headers['global_headers'])
         for index, player in enumerate(meta.player_order):
             for player_header in column_headers['player_headers']:
@@ -444,7 +444,9 @@ class _RLRMLBuilder:
         )
         if self.args.model_path and os.path.exists(self.args.model_path):
             logger.info(f"Loading model path from {self.args.model_path}")
-            model.load_state_dict(torch.load(self.args.model_path, map_location=self.device))
+            model.load_state_dict(
+                torch.load(self.args.model_path, map_location=self.device)
+            )
         model.to(self.device)
         return model
 
@@ -539,7 +541,7 @@ def ballchasing_lookup(builder: _RLRMLBuilder):
         f"https://ballchasing.com/api/replays/{builder.args.uuid}",
         headers={'Authorization': builder.args.ballchasing_token},
     ).json()
-    meta = _replay_meta.ReplayMeta.from_ballchasing_game(game_data)
+    meta = metadata.ReplayMeta.from_ballchasing_game(game_data)
     for player in meta.player_order:
         label = builder.lookup_label(player, meta.datetime)
         print(f"{player} - {label}")
@@ -595,9 +597,12 @@ def apply_model(builder: _RLRMLBuilder):
     output = builder.model(x)
     print("Predictions: ")
     print([builder.label_scaler.unscale(float(label)) for label in output[0]])
-    meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
+    meta = metadata.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
     print("Actual: ")
-    print([builder.lookup_label(player, meta.datetime.date()) for player in meta.player_order])
+    print([
+        builder.lookup_label(player, meta.datetime.date())
+        for player in meta.player_order
+    ])
 
 
 @_RLRMLBuilder.with_default

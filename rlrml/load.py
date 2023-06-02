@@ -11,7 +11,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 
 from . import util
-from ._replay_meta import ReplayMeta
+from .metadata import ReplayMeta
 
 
 logger = logging.getLogger(__name__)

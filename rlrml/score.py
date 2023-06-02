@@ -5,7 +5,7 @@ import logging
 import numpy as np
 
 from . import player_cache as pc
-from . import _replay_meta
+from . import metadata
 from . import mmr
 from . import util
 from .playlist import Playlist
@@ -39,7 +39,7 @@ class MMREstimateScorer:
         self._truncate_lowest_count = truncate_lowest_count
 
     def score_replay_meta(
-            self, meta: _replay_meta.ReplayMeta, abort_score=0.0,
+            self, meta: metadata.ReplayMeta, abort_score=0.0,
             playlist=Playlist('Ranked Doubles 2v2')
     ):
         game_date = meta.datetime.date()
@@ -82,7 +82,7 @@ class MMREstimateScorer:
         return MetaScoreInfo(meta_score, estimates, scores)
 
     def score_player_mmr_estimate(
-            self, player: _replay_meta.PlatformPlayer, date: datetime.date,
+            self, player: metadata.PlatformPlayer, date: datetime.date,
             playlist=Playlist('Ranked Doubles 2v2')
     ):
         player_data = self._get_player_data(player)
