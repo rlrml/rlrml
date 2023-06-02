@@ -7,7 +7,8 @@ import {
   getSortedRowModel,
   SortingState,
   useReactTable,
-} from '@tanstack/react-table'
+} from '@tanstack/react-table';
+import { Link } from "react-router-dom";
 import _ from 'lodash';
 
 function getPlayerCellContents(player) {
@@ -85,7 +86,12 @@ const GameInfoTable = () => {
 		() => [
 			{
 				header: 'UUID',
-				accessorFn: row => <a href={ballchasingURL(row.uuid)}>{row.uuid.substring(0, 8)}</a>,
+				accessorFn: row => (
+					<span>
+						<Link to={`game_detail/${row.uuid}`}>{row.uuid.substring(0, 8)}</Link>
+						<a href={ballchasingURL(row.uuid)}>(bc)</a>
+					</span>
+				),
 				cell: row => row.getValue(),
 			},
 			{
@@ -94,8 +100,6 @@ const GameInfoTable = () => {
 					return {
 						header: playerIndex.toString(),
 						accessorFn: (row) => {
-							console.log(row);
-							console.log(playerIndex);
 							return getPlayerCellContents(row.players[playerIndex])
 						},
 						cell: row => row.getValue(),
