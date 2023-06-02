@@ -3,6 +3,7 @@ import enum
 import json
 import logging
 import numpy as np
+import torch
 import websockets
 
 from threading import Thread
@@ -60,27 +61,34 @@ class Server:
             logger.info(f"Removed connection, count: {len(self.connected)}")
 
 
-class LossType(enum.StrEnum):
+class MessageType(enum.StrEnum):
 
     START_TRAINING = enum.auto()
     STOP_TRAINING = enum.auto()
+    SAVE_MODEL = enum.auto()
 
 
 class FrontendManager:
 
-    def __init__(self, host, port, trainer, label_scaler, args, parser):
+    def __init__(
+            self, host, port, trainer, label_scaler,
+            player_cache, model, args, parser
+    ):
         self._args = args
         self._parser = parser
         self._trainer = trainer
         self._training_thread = None
         self._training_should_continue = True
+        self._player_cache = player_cache
+        self._model = model
         self._label_scaler = label_scaler
         self._server = Server.serve_in_dedicated_thread(
             host, port, client_message_handler=self._handle_client_message
         )
         self._message_type_to_handler = {
-            LossType.START_TRAINING: self._start_training,
-            LossType.STOP_TRAINING: self._stop_training,
+            MessageType.START_TRAINING: self._start_training,
+            MessageType.STOP_TRAINING: self._stop_training,
+            MessageType.SAVE_MODEL: self._save_model,
         }
 
     def _handle_client_message(self, message):
@@ -88,24 +96,27 @@ class FrontendManager:
         if 'type' not in message:
             logger.warn(f"Message {message} did not contain type key")
             return
+        logger.info(f"Client Request: {message}")
         message_type = message['type']
         if message['type'] not in self._message_type_to_handler:
             logger.warn(f"Unrecognized message type {message_type}")
 
-        return self._message_type_to_handler[message['type']](message)
+        return self._message_type_to_handler[message['type']](message.get('data'))
 
     def _make_client_message(self, message_type, data):
         return json.dumps({"type": message_type, "data": data})
 
     def _start_training(self, message):
         if self._training_thread is not None:
-            logger.warn("Attempt to start training even though training thread already exists")
+            logger.warn(
+                "Attempt to start training even though "
+                "training thread already exists"
+            )
             return
         self._training_should_continue = True
         self._training_thread = Thread(
             target=self._train, kwargs=message.get("args", {}), daemon=True
         )
-        logger.info("Starting training")
         self._server.send_message_to_clients(
             self._make_client_message(
                 "training_start",
@@ -115,8 +126,12 @@ class FrontendManager:
         self._training_thread.start()
 
     def _stop_training(self, _message):
-        logger.info("Stopping training")
         self._training_should_continue = False
+
+    def _save_model(self, message):
+        default = self._args.model_path
+        model_filepath = message.get('model_path', default)
+        torch.save(self._model.state_dict(), model_filepath)
 
     def _train(self, epochs=None):
         self._trainer.train(epochs=epochs, on_epoch_finish=self._on_epoch_finish)

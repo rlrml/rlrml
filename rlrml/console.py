@@ -98,7 +98,8 @@ def _add_rlrml_args(parser=None):
         '--playlist',
         help="The name (or number) of the playlist that is being used.",
         default=defaults.get('playlist'),
-        choices=list(Playlist)
+        # type=Playlist,
+        # choices=list(Playlist)
     )
     parser.add_argument(
         '--cycle-vpn',
@@ -685,8 +686,8 @@ def lmdb_migrate(builder: _RLRMLBuilder):
 @_RLRMLBuilder.with_default
 def websocket_host(builder: _RLRMLBuilder):
     websocket.FrontendManager(
-        "localhost", 5002, builder.trainer, builder.label_scaler, builder.args,
-        _add_rlrml_args()
+        "localhost", 5002, builder.trainer, builder.label_scaler, builder.player_cache,
+        builder.model, builder.args, _add_rlrml_args()
     )
 
     import sys

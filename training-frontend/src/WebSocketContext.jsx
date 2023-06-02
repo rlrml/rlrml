@@ -27,6 +27,12 @@ const WebSocketProvider = ({ children }) => {
     setTrainingPlayerCount(data.player_count);
   }
 
+  const makeWebsocketRequest = (type, data) => {
+    if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+      webSocket.send(JSON.stringify({ type, data }));
+    }
+  }
+
   const messageTypeToHandler = {
     "training_epoch": handleTrainingEpoch,
     "training_start": handleTrainingStart,
@@ -70,7 +76,7 @@ const WebSocketProvider = ({ children }) => {
   }, [webSocketAddress]);
 
   return (
-	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount }}>
+	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount, makeWebsocketRequest }}>
       {children}
     </WebSocketContext.Provider>
   );

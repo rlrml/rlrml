@@ -45,7 +45,6 @@ class ReplayModelManager:
         self._accumulation_steps = accumulation_steps
 
     def train(self, epochs=None, on_epoch_finish=log_batch_finish):
-        logger.info(f"Starting training for {epochs} epochs on {self._device}")
         batch_iterator = iter(self._data_loader)
         epoch_iterator = itertools.count() if epochs is None else range(epochs)
         for epoch in epoch_iterator:
