@@ -172,7 +172,7 @@ class FrontendManager:
         self._player_cache.insert_manual_override(player, mmr or None)
 
     def _bust_label_cache(self):
-        self.builder.torch_dataset.bust_label_cache()
+        self._builder.torch_dataset.bust_label_cache()
 
     def _calculate_loss(self):
         self._model.eval()
