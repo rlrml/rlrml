@@ -44,11 +44,6 @@ function meanSquaredError(y_true, y_pred, mask) {
 	let sum = 0;
 	let length = mask.reduce((a, b) => a + b, 0);
 
-	// Check if lengths of arrays are the same
-	if (length !== y_pred.length) {
-		throw new Error("Arrays should have the same length.");
-	}
-
 	for (let i = 0; i < length; i++) {
 		if (mask[i] === 0) {
 			continue
@@ -63,11 +58,6 @@ function meanSquaredError(y_true, y_pred, mask) {
 function meanAbsoluteError(y_true, y_pred, mask) {
 	let sum = 0;
 	let length = mask.reduce((a, b) => a + b, 0);
-
-	// Check if lengths of arrays are the same
-	if (length !== y_pred.length) {
-		throw new Error("Arrays should have the same length.");
-	}
 
 	for (let i = 0; i < length; i++) {
 		if (mask[i] === 0) {

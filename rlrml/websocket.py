@@ -7,6 +7,7 @@ import torch
 import websockets
 
 from threading import Thread
+from . import _replay_meta
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,10 @@ class Server:
         logger.info(f"New websocket connection, count: {len(self.connected)}")
         try:
             async for message in websocket:
-                self.client_message_handler(message)
+                try:
+                    self.client_message_handler(message)
+                except Exception as e:
+                    logger.warn(f"Exception {e} when handling client message {message}")
         finally:
             self.connected.remove(websocket)
             logger.info(f"Removed connection, count: {len(self.connected)}")
@@ -66,6 +70,7 @@ class MessageType(enum.StrEnum):
     START_TRAINING = enum.auto()
     STOP_TRAINING = enum.auto()
     SAVE_MODEL = enum.auto()
+    PLAYER_MMR_OVERRIDE = enum.auto()
 
 
 class FrontendManager:
@@ -89,6 +94,7 @@ class FrontendManager:
             MessageType.START_TRAINING: self._start_training,
             MessageType.STOP_TRAINING: self._stop_training,
             MessageType.SAVE_MODEL: self._save_model,
+            MessageType.PLAYER_MMR_OVERRIDE: self._set_player_mmr_override,
         }
 
     def _handle_client_message(self, message):
@@ -101,12 +107,12 @@ class FrontendManager:
         if message['type'] not in self._message_type_to_handler:
             logger.warn(f"Unrecognized message type {message_type}")
 
-        return self._message_type_to_handler[message['type']](message.get('data'))
+        return self._message_type_to_handler[message['type']](**message.get('data', {}))
 
     def _make_client_message(self, message_type, data):
         return json.dumps({"type": message_type, "data": data})
 
-    def _start_training(self, message):
+    def _start_training(self, **kwargs):
         if self._training_thread is not None:
             logger.warn(
                 "Attempt to start training even though "
@@ -115,7 +121,7 @@ class FrontendManager:
             return
         self._training_should_continue = True
         self._training_thread = Thread(
-            target=self._train, kwargs=message, daemon=True
+            target=self._train, kwargs=kwargs, daemon=True
         )
         self._server.send_message_to_clients(
             self._make_client_message(
@@ -125,13 +131,19 @@ class FrontendManager:
         )
         self._training_thread.start()
 
-    def _stop_training(self, _message):
+    def _stop_training(self):
         self._training_should_continue = False
 
-    def _save_model(self, message):
+    def _save_model(self, model_filepath=None):
         default = self._args.model_path
-        model_filepath = message.get('model_path', default)
+        model_filepath = model_filepath or default
         torch.save(self._model.state_dict(), model_filepath)
+
+    def _set_player_mmr_override(self, tracker_suffix, mmr=None, clear=False):
+        player = _replay_meta.PlatformPlayer.from_tracker_suffix(tracker_suffix)
+        if clear:
+            self._player_cache.remove_manual_override(player)
+        self._player_cache.insert_manual_override(player, mmr or None)
 
     def _train(self, epochs=None):
         self._trainer.train(epochs=epochs, on_epoch_finish=self._on_epoch_finish)
