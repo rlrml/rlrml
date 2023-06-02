@@ -19,6 +19,10 @@ const WebSocketControls = () => {
         makeWebsocketRequest('save_model')
     }
 
+    const handleClickBustCache = () => {
+        makeWebsocketRequest('bust_label_cache')
+    }
+
     const handleChange = event => {
 		setAddress(event.target.value)
     };
@@ -35,6 +39,7 @@ const WebSocketControls = () => {
             <button onClick={handleClickStart}>Start Training</button>
             <button onClick={handleClickStop}>Stop Training</button>
             <button onClick={handleClickSave}>Save Model</button>
+            <button onClick={handleClickBustCache}>Bust Label Cache</button>
         </div>
     );
 };
