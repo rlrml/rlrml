@@ -8,6 +8,7 @@ const WebSocketProvider = ({ children }) => {
   const [webSocketAddress, setWebSocketAddress] = React.useState(null);
   const [webSocket, setWebSocket] = React.useState(null);
 
+  const [sorting, setSorting] = React.useState([]);
   const [lossHistory, setLossHistory] = React.useState([]);
   const [gameInfo, setGameInfo] = React.useState({});
   const [trainingPlayerCount, setTrainingPlayerCount] = React.useState(4);
@@ -77,7 +78,7 @@ const WebSocketProvider = ({ children }) => {
   }, [webSocketAddress]);
 
   return (
-	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount, makeWebsocketRequest }}>
+	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount, makeWebsocketRequest, sorting, setSorting }}>
       {children}
     </WebSocketContext.Provider>
   );
