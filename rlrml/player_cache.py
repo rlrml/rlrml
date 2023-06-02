@@ -16,6 +16,9 @@ def _use_tracker_url_suffix_as_key(player):
     if isinstance(player, PlatformPlayer):
         return player.tracker_suffix.encode('utf-8')
 
+    if "__tracker_suffix__" in player:
+        return player["__tracker_suffix__"]
+
     key_string = tracker_network.get_profile_suffix_for_player(player)
     if key_string is not None:
         return key_string.encode('utf-8')
@@ -117,13 +120,6 @@ class PlayerCache:
 
     # Methods that are unaffected by db
 
-    def get_player_data_no_err(self, player: PlatformPlayer):
-        """Get the data of the provided player catching errors if they occur."""
-        try:
-            return self.get_player_data(player)
-        except PlayerCacheError:
-            pass
-
     def get_player_data(self, player: PlatformPlayer):
         """Get the data of the provided player."""
         key = self._key_for_player(player)
@@ -132,7 +128,15 @@ class PlayerCache:
         return self._get_data_from_key(key)
 
     def insert_manual_override(self, player: PlatformPlayer, mmr):
-        self.insert_data_for_player(player, {self.manual_override_key: mmr})
+        current_data = self.get_player_data(player) or {}
+        current_data[self.manual_override_key] = mmr
+        self.insert_data_for_player(player, current_data)
+
+    def remove_manual_override(self, player: PlatformPlayer):
+        current_data = self.get_player_data(player) or {}
+        if self.manual_override_key in current_data:
+            del current_data[self.manual_override_key]
+            self.insert_data_for_player(player, current_data)
 
     def insert_error_for_player(self, player, error_data):
         """Insert an error for a player."""
@@ -145,13 +149,6 @@ class PlayerCache:
             return self.error_key in self.get_player_data_no_err(player)
         except Exception:
             return False
-
-    def present_and_no_error(self, player):
-        """Check whether a player is present and errorless in the db."""
-        data_or_error = self.get_player_data(player) or {
-            self.error_key: {'type': "Not present"}
-        }
-        return self.error_key not in data_or_error
 
     def _key_for_player(self, player) -> bytes:
         return self._key_fn(player)

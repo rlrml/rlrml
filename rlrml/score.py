@@ -88,10 +88,13 @@ class MMREstimateScorer:
         player_data = self._get_player_data(player)
 
         if player_data is None or '__error__' in player_data:
-            return 0, 0.0
+            return None, 0.0
 
         if pc.PlayerCache.manual_override_key in player_data:
-            return float(player_data[pc.PlayerCache.manual_override_key]), 1.0
+            override_value = player_data[pc.PlayerCache.manual_override_key]
+            if not override_value:
+                return None, 0.0
+            return float(override_value), 1.0
 
         try:
             playlist_mmr_history = player_data['mmr_history'][playlist]
