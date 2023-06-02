@@ -16,6 +16,11 @@ const WebSocketProvider = ({ children }) => {
   const [configuration, setConfiguration] = React.useState({});
   let socket;
 
+  const handleLossBatch = (data) => {
+    const newData = getGameInfo(data);
+    setGameInfo(prevGameInfo => ({...prevGameInfo, ...newData}));
+  }
+
   const handleTrainingEpoch = (data) => {
     setLossHistory(prevLossHistory => [...prevLossHistory, data.loss]);
     const newData = getGameInfo(data);
@@ -38,6 +43,7 @@ const WebSocketProvider = ({ children }) => {
   const messageTypeToHandler = {
     "training_epoch": handleTrainingEpoch,
     "training_start": handleTrainingStart,
+    "loss_batch": handleLossBatch,
   };
 
   const processGameData = (data, uuid, tracker_suffixes, y, y_pred, masks) => {

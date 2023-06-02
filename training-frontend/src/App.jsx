@@ -1,5 +1,6 @@
 import React from 'react';
 import TrainingSessionPage from './TrainingSessionPage';
+import LossAnalysisPage from './LossAnalysisPage';
 import GameDetailPage from './GameDetailPage';
 import PlayerDetailPage from './PlayerDetailPage';
 import { WebSocketProvider } from './WebSocketContext';
@@ -15,6 +16,7 @@ function App() {
                     <Routes>
                         <Route path="/" element={<TrainingSessionPage />} />
                         <Route path="/training" element={<TrainingSessionPage />} />
+                        <Route path="/loss_analysis" element={<LossAnalysisPage />} />
                         <Route path="/game_detail/:uuid" element={<GameDetailPage /> } />
                         <Route path="/player_detail/:trackerType/:trackerId" element={<PlayerDetailPage /> } />
                     </Routes>

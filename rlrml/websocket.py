@@ -39,8 +39,13 @@ class Server:
         self.connected = set()
         self.client_message_handler = client_message_handler
 
-    async def process_and_broadcast_message(self, message, prepare_for_broadcast=lambda x: x):
-        processed_message = prepare_for_broadcast(message)
+    async def process_and_broadcast_message(
+            self, message, prepare_for_broadcast=lambda x: x
+    ):
+        try:
+            processed_message = prepare_for_broadcast(message)
+        except Exception as e:
+            logger.warning(f"Exception {e} encountered preparing {message}")
         websockets.broadcast(self.connected, processed_message)
 
     def send_message_to_clients(self, message, prepare_for_broadcast=lambda x: x):
@@ -67,34 +72,40 @@ class Server:
 
 class MessageType(enum.StrEnum):
 
+    START_LOSS_ANALYSIS = enum.auto()
     START_TRAINING = enum.auto()
     STOP_TRAINING = enum.auto()
     SAVE_MODEL = enum.auto()
     PLAYER_MMR_OVERRIDE = enum.auto()
+    BUST_LABEL_CACHE = enum.auto()
 
 
 class FrontendManager:
 
     def __init__(
             self, host, port, trainer, label_scaler,
-            player_cache, model, args, parser
+            player_cache, model, builder, args, parser
     ):
         self._args = args
+        self._builder = builder
         self._parser = parser
         self._trainer = trainer
         self._training_thread = None
         self._training_should_continue = True
         self._player_cache = player_cache
         self._model = model
+        self._loss_epoch_counter = 0
         self._label_scaler = label_scaler
         self._server = Server.serve_in_dedicated_thread(
             host, port, client_message_handler=self._handle_client_message
         )
         self._message_type_to_handler = {
+            MessageType.START_LOSS_ANALYSIS: self._start_loss_analysis,
             MessageType.START_TRAINING: self._start_training,
             MessageType.STOP_TRAINING: self._stop_training,
             MessageType.SAVE_MODEL: self._save_model,
             MessageType.PLAYER_MMR_OVERRIDE: self._set_player_mmr_override,
+            MessageType.BUST_LABEL_CACHE: self._bust_label_cache,
         }
 
     def _handle_client_message(self, message):
@@ -112,12 +123,27 @@ class FrontendManager:
     def _make_client_message(self, message_type, data):
         return json.dumps({"type": message_type, "data": data})
 
-    def _start_training(self, **kwargs):
+    def _ensure_training_thread_ready(self):
         if self._training_thread is not None:
             logger.warn(
                 "Attempt to start training even though "
                 "training thread already exists"
             )
+            return False
+        return True
+
+    def _start_loss_analysis(self):
+        if not self._ensure_training_thread_ready():
+            return
+
+        self._training_should_continue = True
+        self._training_thread = Thread(
+            target=self._calculate_loss, daemon=True
+        )
+        self._training_thread.start()
+
+    def _start_training(self, **kwargs):
+        if not self._ensure_training_thread_ready():
             return
         self._training_should_continue = True
         self._training_thread = Thread(
@@ -145,13 +171,39 @@ class FrontendManager:
             self._player_cache.remove_manual_override(player)
         self._player_cache.insert_manual_override(player, mmr or None)
 
+    def _bust_label_cache(self):
+        self.builder.torch_dataset.bust_label_cache()
+
+    def _calculate_loss(self):
+        self._model.eval()
+        self._trainer.process_loss(self._process_loss_batch)
+
+    def _process_loss_batch(self, training_data, y_pred, loss_tensor):
+        data = {
+            "y_loss": loss_tensor.detach(),
+            "y_pred": y_pred.detach(),
+            "mask": training_data.mask.detach(),
+            "y": training_data.y.detach(),
+            "meta": training_data.meta,
+            "epoch": self._loss_epoch_counter,
+            "uuids": training_data.uuids,
+        }
+        self._loss_epoch_counter += 1
+        self._server.send_message_to_clients(
+            data, self._prepare_loss_batch_for_broadcast
+        )
+        return self._training_should_continue
+
+    def _prepare_loss_batch_for_broadcast(self, data):
+        self._transform_data(data)
+        return self._make_client_message("loss_batch", data)
+
     def _train(self, epochs=None):
+        self._model.train()
         self._trainer.train(epochs=epochs, on_epoch_finish=self._on_epoch_finish)
         self._training_thread = None
 
-    def _prepare_training_info_for_broadcast(self, data):
-        del data["trainer"]
-        data['loss'] = np.sqrt(self._label_scaler.unscale_no_translate(data['loss']))
+    def _transform_data(self, data):
         data['y_loss'] = np.sqrt(self._label_scaler.unscale_no_translate(
             data['y_loss'].cpu()
         )).tolist()
@@ -163,6 +215,13 @@ class FrontendManager:
             for meta in data['meta']
         ]
         del data['meta']
+        return data
+
+    def _prepare_training_info_for_broadcast(self, data):
+        if "trainer" in data:
+            del data["trainer"]
+        data['loss'] = np.sqrt(self._label_scaler.unscale_no_translate(data['loss']))
+        self._transform_data(data)
         return self._make_client_message("training_epoch", data)
 
     def _on_epoch_finish(self, **kwargs):

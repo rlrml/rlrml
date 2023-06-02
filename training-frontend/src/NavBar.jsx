@@ -14,7 +14,7 @@ import MenuItem from '@mui/material/MenuItem';
 import AdbIcon from '@mui/icons-material/Adb';
 import { useNavigate } from 'react-router-dom';
 
-const pages = ['training'];
+const pages = ['training', "loss_analysis"];
 const settings = ['Profile', 'Account', 'Dashboard', 'Logout'];
 
 function NavBar() {
@@ -99,7 +99,7 @@ function NavBar() {
             >
               {pages.map((page) => (
                       <MenuItem key={page} onClick={handleNavigateMenuClicked(page)}>
-                  <Typography textAlign="center">{page}</Typography>
+                        <Typography textAlign="center">{page.replace('_', ' ')}</Typography>
                 </MenuItem>
               ))}
             </Menu>
