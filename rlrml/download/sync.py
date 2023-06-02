@@ -3,6 +3,10 @@ import os
 import requests
 from .. import util
 import urllib
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class SynchronousReplayDownloader:
@@ -26,7 +30,7 @@ class SynchronousReplayDownloader:
         self._all_replays_directory = all_replays_directory
         self._symlink_if_known = symlink_if_known
         if all_replays_directory:
-            self._uuid_to_path = util.get_replay_uuids_in_directory(all_replays_directory)
+            self._uuid_to_path = dict(util.get_replay_uuids_in_directory(all_replays_directory))
         else:
             self._uuid_to_path = {}
 
@@ -86,6 +90,7 @@ class SynchronousReplayDownloader:
                 source_filepath = self._uuid_to_path[uuid]
                 if source_filepath != target_filepath:
                     os.symlink(source_filepath, target_filepath)
+            logger.info(f"Skipping {uuid} because it is already downloaded")
             return
         if self._replay_filter(replay_meta):
             uri = self._replay_download_uri(uuid)
