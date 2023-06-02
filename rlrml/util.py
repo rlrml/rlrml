@@ -29,18 +29,6 @@ def get_replay_uuids_in_directory(filepath, replay_extension="replay"):
                 yield replay_id, replay_path
 
 
-def get_cache_answer_uuids_in_directory(filepath, player_cache: pc.PlayerCache):
-    for uuid, filepath in get_replay_uuids_in_directory(filepath):
-        try:
-            data_present = player_data_present(filepath, player_cache)
-        except Exception as e:
-            print(f"Exception {e}")
-            continue
-        else:
-            if data_present:
-                yield uuid, filepath
-
-
 def player_data_present(replay_path, player_cache: pc.PlayerCache):
     meta = _replay_meta.ReplayMeta.from_boxcar_frames_meta(
         boxcars_py.get_replay_meta(replay_path)

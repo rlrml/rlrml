@@ -513,15 +513,6 @@ def proxy():
     proxy.app.run(port=5002)
 
 
-@_RLRMLBuilder.with_default
-def get_cache_answer_uuids(builder: _RLRMLBuilder):
-    uuids = list(util.get_cache_answer_uuids_in_directory(
-        builder.args.replay_path, builder.player_cache
-    ))
-    print(len(uuids))
-    import ipdb; ipdb.set_trace()
-
-
 @_RLRMLBuilder.add_args("uuid")
 def ballchasing_lookup(builder: _RLRMLBuilder):
     game_data = requests.get(
