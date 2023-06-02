@@ -162,7 +162,7 @@ def run():
                 (filter_by_known_miss, "Too many players with known 404"),
                 (filter_by_replay_score, "Replay score was too low"),
                 (filter_by_disparity, "Disparity wasn't high enough")
-            ), symlink_if_known=args.symlink_if_known
+            ), symlink_if_known=args.symlink_if_known, all_replays_directory=all_replays_dir
         ).download_replays(args.count)
     else:
         with tqdm.tqdm(total=args.count) as pbar:
