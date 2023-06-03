@@ -16,16 +16,17 @@ import numpy as np
 from pathlib import Path
 
 from . import _http_graph_server
-from . import score
+from . import assess
 from . import load
 from . import logger
+from . import loss
+from . import metadata
 from . import player_cache as pc
+from . import replay_attributes_db
+from . import score
 from . import tracker_network
 from . import util
-from . import loss
 from . import vpn
-from . import metadata
-from . import assess
 from . import websocket
 from .model import train, build
 from .playlist import Playlist
@@ -59,6 +60,7 @@ def _add_rlrml_args(parser=None):
     defaults = {
         "player-cache": os.path.join(rlrml_data_directory, "player_cache"),
         "tensor-cache": os.path.join(rlrml_data_directory, "tensor_cache"),
+        "replay-attributes-db": os.path.join(rlrml_data_directory, "replay_attributes_db"),
         "replay-path": os.path.join(rlrml_data_directory, "replays"),
         "playlist": Playlist("Ranked Doubles 2v2"),
         "boxcar-frames-arguments": {
@@ -78,6 +80,12 @@ def _add_rlrml_args(parser=None):
         help="The directory where game files are stored.",
         type=Path,
         default=defaults.get('replay-path', '~/.local/share/rlrml/replays')
+    )
+    parser.add_argument(
+        '--replay-attributes-db',
+        help="The directory where the lmdb database for game attributes is located.",
+        type=Path,
+        default=defaults.get('replay-attributes-db')
     )
     parser.add_argument(
         '--num-workers',
@@ -256,6 +264,11 @@ class _RLRMLBuilder:
     @functools.cached_property
     def vpn_cycle_status_codes(self):
         return (429, 403)
+
+    @functools.cached_property
+    def replay_attributes_db(self):
+        os.makedirs(self.args.replay_attributes_db, exist_ok=True)
+        return replay_attributes_db.ReplayAttributesDB(str(self.args.replay_attributes_db))
 
     @functools.cached_property
     def player_cache(self):
@@ -647,6 +660,7 @@ def apply_model(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.with_default
 def calculate_loss(builder: _RLRMLBuilder):
+    import ipdb; ipdb.set_trace()
     results = []
 
     def unscale(values):

@@ -104,7 +104,6 @@ class MMREstimateScorer:
             playlist_mmr_history = []
 
         if not playlist_mmr_history:
-            logger.warning(f"{player} had no mmr history")
             return (0.0, 0.0)
 
         history_by_season = mmr.split_mmr_history_into_seasons(

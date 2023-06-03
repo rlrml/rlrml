@@ -5,6 +5,7 @@ import collections
 import json
 import logging
 import os
+import random
 import torch
 
 from pathlib import Path
@@ -190,19 +191,20 @@ class DirectoryReplaySet(ReplaySet):
 
     def __init__(
             self, filepath, replay_extension="replay", boxcar_frames_arguments=None,
-            tensor_transformer=lambda meta, t: t
+            tensor_transformer=lambda meta, t: t, skip_uuid_fn=lambda _uuid: False
     ):
         self._filepath = filepath
         self._replay_extension = replay_extension
-        self._replay_id_paths = list(self._get_replay_ids())
+        self._replay_id_paths = [
+            (path, uuid)
+            for path, uuid in util.get_replay_uuids_in_directory(
+                self._filepath, replay_extension=self._replay_extension
+            )
+            if not skip_uuid_fn(uuid)
+        ]
         self._replay_path_dict = dict(self._replay_id_paths)
         self._boxcar_frames_arguments = boxcar_frames_arguments or {}
         self._tensor_transformer = tensor_transformer
-
-    def _get_replay_ids(self):
-        return util.get_replay_uuids_in_directory(
-            self._filepath, replay_extension=self._replay_extension
-        )
 
     def replay_path(self, replay_id):
         """Get the path of the given replay id."""
@@ -249,7 +251,8 @@ class ReplayDataset(Dataset):
     def __init__(
             self, replay_set: ReplaySet, lookup_label, playlist,
             header_info, label_scaler=util.HorribleHackScaler,
-            preload=False, zero_is_missing=True, skip_exceptions=True
+            preload=False, zero_is_missing=True, skip_exceptions=True,
+            skip_uuid_fn=lambda _uuid: False
     ):
         """Initialize the data loader."""
         self._replay_set = replay_set
@@ -261,6 +264,7 @@ class ReplayDataset(Dataset):
         self._label_scaler = label_scaler
         self._zero_is_missing = zero_is_missing
         self._skip_exceptions = skip_exceptions
+        self._skip_uuid_fn = skip_uuid_fn
         if preload:
             for i in range(len(self._replay_ids)):
                 self[i]
@@ -319,18 +323,27 @@ class ReplayDataset(Dataset):
         """Get the replay at the provided index."""
         return self.get_with_uuid(index)
 
+    def random_game(self):
+        return self.get_with_uuid(random.choice(range(len(self))))
+
     def get_with_uuid(self, index):
         if index < 0 or index > len(self._replay_ids):
             raise KeyError
+
         uuid = self._replay_ids[index]
+
+        if self._skip_uuid_fn(uuid):
+            return self.random_game()
+
         try:
             replay_tensor, meta = self._replay_set.get_replay_tensor(uuid)
         except Exception as e:
             if self._skip_exceptions:
                 logger.warn(f"Hit exception {e} on {uuid}")
-                return self.get_with_uuid(index + 1)
+                return self.random_game()
             else:
                 raise e
+
         labels, mask = self._get_replay_labels(uuid, meta)
 
         return TrainingData(
