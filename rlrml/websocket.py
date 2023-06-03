@@ -78,6 +78,7 @@ class MessageType(enum.StrEnum):
     SAVE_MODEL = enum.auto()
     PLAYER_MMR_OVERRIDE = enum.auto()
     BUST_LABEL_CACHE = enum.auto()
+    BLACKLIST_REPLAY = enum.auto()
 
 
 class FrontendManager:
@@ -106,6 +107,7 @@ class FrontendManager:
             MessageType.SAVE_MODEL: self._save_model,
             MessageType.PLAYER_MMR_OVERRIDE: self._set_player_mmr_override,
             MessageType.BUST_LABEL_CACHE: self._bust_label_cache,
+            MessageType.BLACKLIST_REPLAY: self._blacklist_replay,
         }
 
     def _handle_client_message(self, message):
@@ -173,6 +175,14 @@ class FrontendManager:
 
     def _bust_label_cache(self):
         self._builder.torch_dataset.bust_label_cache()
+
+    def _blacklist_replay(self, uuid, reason=None):
+        self._builder.replay_attributes_db.put_replay_attributes(
+            uuid, {
+                "blacklist_reason": reason,
+                "blacklisted": True,
+            }
+        )
 
     def _calculate_loss(self):
         self._model.eval()

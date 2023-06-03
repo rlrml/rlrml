@@ -10,15 +10,24 @@ import { Link } from "react-router-dom";
 import _ from 'lodash';
 
 function getPlayerCellContents(player) {
-	const actual = Math.trunc(Number(player.mmr)).toString().padStart(4, '0');
+	let actual = Math.trunc(Number(player.mmr)).toString().padStart(4, '0');
 	const predicted = Math.trunc(Number(player.prediction)).toString().padStart(4, '0');
 	const playerText = player.tracker_suffix.split('/')[1].substring(0, 10).padStart(10, ' ');
 	const trackerLinkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
-	const predictedColor = player.mask === 0 ? "grey" : "black";
+    let actualColor = "blue";
+	let predictedColor = "black";
+	if (player.mask === 0) {
+		actual = "N/A";
+		actualColor = "grey";
+	}
+	if (player.isBiggestMiss) {
+		predictedColor = "red";
+	}
 	return (
 		<span>
 			<Link to={`/player_detail/${player.tracker_suffix}`}>{playerText}
-			</Link> - <a href={trackerLinkTarget}>{actual}</a> <span style={{ color: predictedColor }}>({predicted})</span>
+			</Link> - <a href={trackerLinkTarget} style={{ color: actualColor }}>{actual}
+					  </a> <span style={{ color: predictedColor }}>({predicted})</span>
 		</span>
 	);
 }

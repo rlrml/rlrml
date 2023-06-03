@@ -270,6 +270,11 @@ class _RLRMLBuilder:
         os.makedirs(self.args.replay_attributes_db, exist_ok=True)
         return replay_attributes_db.ReplayAttributesDB(str(self.args.replay_attributes_db))
 
+    def replay_is_blacklisted(self, uuid):
+        return self.replay_attributes_db.get_replay_attributes(uuid).get(
+            "blacklisted", False
+        )
+
     @functools.cached_property
     def player_cache(self):
         return (
@@ -350,7 +355,8 @@ class _RLRMLBuilder:
         return load.DirectoryReplaySet.cached(
             self.args.tensor_cache, self.args.replay_path,
             boxcar_frames_arguments=self.args.bcf_args,
-            tensor_transformer=self.position_scaler.scale_position_columns
+            tensor_transformer=self.position_scaler.scale_position_columns,
+            skip_uuid_fn=self.replay_is_blacklisted
         )
 
     @functools.cached_property
@@ -376,7 +382,7 @@ class _RLRMLBuilder:
         return load.ReplayDataset(
             self.cached_directory_replay_set, self.lookup_label,
             self.playlist, self.header_info, preload=self.args.preload,
-            label_scaler=self.label_scaler
+            label_scaler=self.label_scaler, skip_uuid_fn=self.replay_is_blacklisted
         )
 
     @functools.cached_property

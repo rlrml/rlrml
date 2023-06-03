@@ -333,6 +333,7 @@ class ReplayDataset(Dataset):
         uuid = self._replay_ids[index]
 
         if self._skip_uuid_fn(uuid):
+            logger.warn(f"Skipping {uuid} because of skip_uuid_fn")
             return self.random_game()
 
         try:

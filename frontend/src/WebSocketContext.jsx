@@ -46,14 +46,21 @@ const WebSocketProvider = ({ children }) => {
   };
 
   const processGameData = (data, uuid, tracker_suffixes, y, y_pred, masks, y_loss) => {
+    let maximizer = _.maxBy(
+      _.zip(y, y_pred, masks, [...Array(y_pred.length).keys()]),
+      (values) => Math.abs(values[0] - values[1]) * values[2]
+    )[3]
+
+    let players = _.zipWith(
+      tracker_suffixes, y, y_pred, masks,
+      (tracker_suffix, mmr, prediction, mask) => {
+        return {tracker_suffix, mmr, prediction, mask};
+      }
+    )
+    players[maximizer].isBiggestMiss = true;
     return [uuid, {
       "uuid": uuid,
-      "players": _.zipWith(
-        tracker_suffixes, y, y_pred, masks,
-        (tracker_suffix, mmr, prediction, mask) => {
-          return {tracker_suffix, mmr, prediction, mask};
-        }
-      ),
+      players,
       y_pred,
       y,
       masks,
