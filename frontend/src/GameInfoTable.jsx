@@ -1,5 +1,5 @@
 import React from 'react';
-import { WebSocketContext } from './WebSocketContext';
+import { WebSocketContext, GameInfoContext } from './WebSocketContext';
 import {
   flexRender,
   getCoreRowModel,
@@ -8,34 +8,20 @@ import {
 } from '@tanstack/react-table';
 import { Link } from "react-router-dom";
 import _ from 'lodash';
-
-function getPlayerCellContents(player) {
-	let actual = Math.trunc(Number(player.mmr)).toString().padStart(4, '0');
-	const predicted = Math.trunc(Number(player.prediction)).toString().padStart(4, '0');
-	const playerText = player.tracker_suffix.split('/')[1].substring(0, 10).padStart(10, ' ');
-	const trackerLinkTarget = `https://rocketleague.tracker.network/rocket-league/profile/${player.tracker_suffix}`;
-    let actualColor = "blue";
-	let predictedColor = "black";
-	if (player.mask === 0) {
-		actual = "N/A";
-		actualColor = "grey";
-	}
-	if (player.isBiggestMiss) {
-		predictedColor = "red";
-	}
-	return (
-		<span>
-			<Link to={`/player_detail/${player.tracker_suffix}`}>{playerText}
-			</Link> - <a href={trackerLinkTarget} style={{ color: actualColor }}>{actual}
-					  </a> <span style={{ color: predictedColor }}>({predicted})</span>
-		</span>
-	);
-}
+import { getPlayerHTML } from './Util';
 
 function getLargestMiss(row) {
 	let pairs = _.zip(row.y, row.y_pred, row.masks);
 	let deltas = pairs.map(
 		v => v[2] === 0 ? 0 : Math.abs(v[0] - v[1]),
+	)
+	return Math.trunc(Math.max(...deltas))
+}
+
+function getLargestProportionalMiss(row) {
+	let pairs = _.zip(row.y, row.y_pred, row.masks);
+	let deltas = pairs.map(
+		v => v[2] === 0 ? 0 : Math.abs(v[0] - v[1]) * 100 / Math.sqrt(v[0]),
 	)
 	return Math.trunc(Math.max(...deltas))
 }
@@ -82,7 +68,13 @@ function ballchasingURL(uuid) {
 }
 
 const GameInfoTable = () => {
-	const { gameInfo, trainingPlayerCount, sorting, setSorting } = React.useContext(WebSocketContext);
+	const { trainingPlayerCount, sorting, setSorting } = React.useContext(WebSocketContext);
+	const { gameInfo } = React.useContext(GameInfoContext);
+
+	const [columnAggregates, setColumnAggregates] = React.useState({});
+
+	const recomputeColumnAggregates = () => {
+	}
 
 	const columns = React.useMemo(
 		() => [
@@ -102,7 +94,7 @@ const GameInfoTable = () => {
 					return {
 						header: playerIndex.toString(),
 						accessorFn: (row) => {
-							return getPlayerCellContents(row.players[playerIndex])
+							return getPlayerHTML(row.players[playerIndex])
 						},
 						cell: row => row.getValue(),
 					}
@@ -115,6 +107,10 @@ const GameInfoTable = () => {
 			{
 				header: '> Miss',
 				accessorFn: getLargestMiss,
+			},
+			{
+				header: '> P Miss',
+				accessorFn: getLargestProportionalMiss,
 			},
 			{
 				header: '> Delt',

@@ -2,6 +2,7 @@ import React from 'react';
 import _ from 'lodash';
 
 const WebSocketContext = React.createContext(null);
+const GameInfoContext = React.createContext(null);
 
 const WebSocketProvider = ({ children }) => {
   const [connectionStatus, setConnectionStatus] = React.useState('disconnected');
@@ -116,9 +117,11 @@ const WebSocketProvider = ({ children }) => {
 
   return (
 	<WebSocketContext.Provider value={{ lossHistory, gameInfo, connectionStatus, setWebSocketAddress, webSocket, trainingPlayerCount, makeWebsocketRequest, sorting, setSorting }}>
-      {children}
+      <GameInfoContext.Provider value={{ gameInfo }}>
+        {children}
+      </GameInfoContext.Provider >
     </WebSocketContext.Provider>
   );
 };
 
-export { WebSocketContext, WebSocketProvider };
+export { GameInfoContext, WebSocketContext, WebSocketProvider };
