@@ -22,6 +22,7 @@ class LossType(enum.StrEnum):
     DIFFERENCE_WEIGHTED_MSE_LOSS = enum.auto()
     DIFFERENCE_AND_MSE_LOSS = enum.auto()
     WEIGHTED_MSE = enum.auto()
+    MSE = enum.auto()
 
     def get_fn_from_args(self, **kwargs):
         if self == self.WEIGHTED_MSE:
@@ -30,6 +31,8 @@ class LossType(enum.StrEnum):
             return difference_and_mse_loss(**kwargs)
         elif self == self.DIFFERENCE_WEIGHTED_MSE_LOSS:
             return WeightedLoss(weight_by=DifferenceLoss())
+        elif self == self.MSE:
+            return torch.nn.MSELoss(reduction='none')
 
 
 class CombinedLoss(torch.nn.Module):
@@ -130,8 +133,6 @@ class WeightedLoss(torch.nn.Module):
         self.weight_by = weight_by
         self.loss_takes_mask = loss_takes_mask(self.loss_fn)
         self.weight_takes_mask = loss_takes_mask(self.weight_by)
-        self.add_module("loss", self.loss_fn)
-        self.add_module("weight", self.weight_by)
 
     def forward(self, y_pred, y_true, mask=None):
         mask = mask if mask is not None else torch.ones_like(y_true)
