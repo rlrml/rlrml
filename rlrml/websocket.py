@@ -187,6 +187,7 @@ class FrontendManager:
     def _calculate_loss(self):
         self._model.eval()
         self._trainer.process_loss(self._process_loss_batch)
+        self._training_thread = None
 
     def _process_loss_batch(self, training_data, y_pred, loss_tensor):
         data = {

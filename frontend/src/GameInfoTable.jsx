@@ -82,7 +82,7 @@ const GameInfoTable = () => {
 				header: 'UUID',
 				accessorFn: row => (
 					<span>
-						<Link to={`game_detail/${row.uuid}`}>{row.uuid.substring(0, 8)}</Link>
+						<Link to={`/game_detail/${row.uuid}`}>{row.uuid.substring(0, 8)}</Link>
 						<a href={ballchasingURL(row.uuid)}>(bc)</a>
 					</span>
 				),

@@ -35,7 +35,7 @@ ipdb = "^0.13.13"
 pytest = "*"
 
 [tool.poetry.scripts]
-load_game_dataset = 'rlrml.console:load_game_dataset'
+symlink_if_disparity = 'rlrml.console:symlink_if_disparity'
 host_plots = 'rlrml.console:host_plots'
 rlbc_download = 'rlrml.download.console:run'
 get_player = 'rlrml.console:get_player'

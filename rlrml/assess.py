@@ -135,7 +135,10 @@ class ReplaySetAssesor:
                 isinstance(self._replay_set, load.CachedReplaySet) and
                 not self._always_load_tensor
         ):
-            meta = self._replay_set.get_replay_meta(uuid)
+            try:
+                meta = self._replay_set.get_replay_meta(uuid)
+            except Exception as e:
+                logger.warn(f"Exception when loading meta of {uuid} {e}")
             if require_headers and meta is not None and not meta.headers:
                 self._replay_set.bust_cache(uuid)
                 meta = None

@@ -54,7 +54,9 @@ def _rlrml_data_directory(config):
 
 
 def _add_rlrml_args(parser=None):
-    parser = parser or argparse.ArgumentParser()
+    parser = parser or argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     config = _load_rlrml_config()
     rlrml_data_directory = _rlrml_data_directory(config)
     defaults = {
@@ -120,6 +122,7 @@ def _add_rlrml_args(parser=None):
     parser.add_argument(
         '--scale-positions',
         default=False,
+        help="Whether or not to scale positions the position values in the replay tensors.",
     )
     parser.add_argument(
         '--model-path',
@@ -517,7 +520,7 @@ class _RLRMLBuilder:
 
 
 @_RLRMLBuilder.add_args("target_path", "min_disparity")
-def load_game_dataset(builder: _RLRMLBuilder):
+def symlink_if_disparity(builder: _RLRMLBuilder):
     """Convert the game provided through sys.argv."""
     existing_uuids = set(
         uuid for uuid, _ in util.get_replay_uuids_in_directory(builder.args.target_path)
@@ -654,14 +657,13 @@ def apply_model(builder: _RLRMLBuilder):
     builder.model.to(builder.device)
     x = torch.stack([torch.tensor(ndarray)]).to(builder.device)
     output = builder.model(x)
-    print("Predictions: ")
-    print([builder.label_scaler.unscale(float(label)) for label in output[0]])
     meta = metadata.ReplayMeta.from_boxcar_frames_meta(meta['replay_meta'])
-    print("Actual: ")
-    print([
+    predictions = [builder.label_scaler.unscale(float(label)) for label in output[0]]
+    actual = [
         builder.lookup_label(player, meta.datetime.date())
         for player in meta.player_order
-    ])
+    ]
+    print(list(zip(meta.player_order, actual, predictions)))
 
 
 @_RLRMLBuilder.with_default
@@ -738,8 +740,12 @@ def delete_if_less_than(builder: _RLRMLBuilder):
 
 @_RLRMLBuilder.add_args("game_uuid")
 def score_game(builder: _RLRMLBuilder):
-    meta = builder.cached_directory_replay_set.get_replay_meta(builder.args.game_uuid)
-    score = builder.player_mmr_estimate_scorer.score_replay_meta(meta, playlist=builder.playlist)
+    meta = builder.cached_directory_replay_set.get_replay_meta(
+        builder.args.game_uuid
+    )
+    score = builder.player_mmr_estimate_scorer.score_replay_meta(
+        meta, playlist=builder.playlist
+    )
     print(meta.player_order)
     print(score)
     builder.model.eval()
