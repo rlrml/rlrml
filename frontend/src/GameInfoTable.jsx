@@ -122,11 +122,15 @@ const GameInfoTable = () => {
 			},
 			{
 				header: 'RMSE',
-				accessorFn: row => Math.trunc(Math.sqrt(meanSquaredError(row.y_pred, row.y, row.masks))),
+			  accessorFn: row => Math.trunc(
+				Math.sqrt(meanSquaredError(row.y_pred, row.y, row.masks)))
+			  ,
 			},
 			{
 				header: 'MAE',
-				accessorFn: row => Math.trunc(meanAbsoluteError(row.y_pred, row.y, row.masks)),
+			  accessorFn: row => Math.trunc(
+				meanAbsoluteError(row.y_pred, row.y, row.masks)
+			  ),
 			},
 			{
 				header: 'Mask',
@@ -144,7 +148,9 @@ const GameInfoTable = () => {
 		[trainingPlayerCount]
 	);
 
-	const data = React.useMemo(() => Object.keys(gameInfo).map(uuid => ({ uuid, ...gameInfo[uuid] })), [gameInfo]);
+  const data = React.useMemo(() => Object.keys(gameInfo).map(
+	uuid => ({ uuid, ...gameInfo[uuid] })), [gameInfo]
+  );
 
 	const table = useReactTable({
 		data,

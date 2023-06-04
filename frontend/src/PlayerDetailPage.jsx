@@ -17,7 +17,14 @@ const PlayerDetailPage = () => {
 			)
 			return matching !== undefined
 		}
-	).map((game) => [game.uuid, game]));
+				).map((game) => [game.uuid, game]));
+
+	const averageEstimate = _.sum(_.map(relevantGames, ((game) => {
+		let matching = _.find(game.players, (player) =>
+			player.tracker_suffix == trackerSuffix
+		)
+		return matching.prediction
+	}))) / Object.keys(relevantGames).length
 
 	const handleChange = event => {
 		let value = Number(event.target.value)
@@ -34,6 +41,7 @@ const PlayerDetailPage = () => {
         <div>
 			{ trackerType }: { trackerId }
 			<br />
+			Average Estimate: { averageEstimate }
 			<GameInfoContext.Provider value={{ gameInfo: relevantGames }}>
 				<GameInfoTable />
 			</GameInfoContext.Provider>
