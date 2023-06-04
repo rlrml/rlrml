@@ -44,3 +44,15 @@ class ReplayAttributesDB:
 
     def _decode_value(self, value_bytes: bytes):
         return json.loads(value_bytes.decode('utf-8'))
+
+    def __iter__(self, start_key=None):
+        for k, v in self.raw_iterator(start_key=start_key):
+            yield self._decode_key(k), self._decode_value(v)
+
+    def raw_iterator(self, start_key=None):
+        with self._env.begin(db=self._db) as txn:
+            cursor = txn.cursor()
+            if start_key is not None:
+                cursor.set_key(start_key)
+            for v in cursor.iternext():
+                yield v

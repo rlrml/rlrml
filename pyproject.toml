@@ -48,7 +48,7 @@ apply_model = 'rlrml.console:apply_model'
 calculate_loss = 'rlrml.console:calculate_loss'
 manual_override = 'rlrml.console:manual_override'
 delete_if_less_than = 'rlrml.console:delete_if_less_than'
-socks_proxy_get = 'rlrml.console:socks_proxy_get'
+blacklist_game = 'rlrml.console:blacklist_game'
 lmdb_migrate = 'rlrml.console:lmdb_migrate'
 websocket_host = 'rlrml.console:websocket_host'
 

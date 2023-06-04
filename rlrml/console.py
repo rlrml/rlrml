@@ -609,13 +609,15 @@ def ballchasing_lookup(builder: _RLRMLBuilder):
         print(f"{player} - {label}")
 
 
-@_RLRMLBuilder.add_args("uri")
-def socks_proxy_get(builder: _RLRMLBuilder):
-    for i in range(6):
-        result = builder.tracker_network_cloud_scraper.get_player_data(
-            {"__tracker_suffix__": "epic/colonel_panic8"}
-        )
-        print(result)
+@_RLRMLBuilder.add_args("uuid", "reason")
+def blacklist_game(builder: _RLRMLBuilder):
+    builder.replay_attributes_db.put_replay_attributes(builder.args.uuid, {
+        "blacklisted": True,
+        "reason": builder.args.reason,
+    })
+    for uuid, values in builder.replay_attributes_db:
+        print(uuid)
+        print(values)
 
 
 @_RLRMLBuilder.add_args("player_key")
