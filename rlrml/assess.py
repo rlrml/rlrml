@@ -52,7 +52,8 @@ class ReplaySetAssesor:
 
     def __init__(
             self, replay_set: load.ReplaySet, scorer, playlist=Playlist.DOUBLES,
-            ignore_known_errors=True, always_load_tensor=False, ipdb_on_exception=False,
+            ignore_known_errors=True, always_load_tensor=False,
+            ipdb_on_exception=False, never_rereraise=True
     ):
         self._replay_set = replay_set
         self._scorer = scorer
@@ -60,6 +61,7 @@ class ReplaySetAssesor:
         self._ignore_known_errors = ignore_known_errors
         self._always_load_tensor = always_load_tensor
         self._ipdb_on_exception = ipdb_on_exception
+        self._never_reraise = True
 
     def get_replay_statuses(self):
         return dict(self.yield_replay_statuses())
@@ -119,6 +121,9 @@ class ReplaySetAssesor:
     ]
 
     def _should_reraise(self, e):
+        if self._never_reraise:
+            logger.warn(f"Not reraising {e}")
+            return False
         try:
             exception_text = e.args[0]
         except Exception:

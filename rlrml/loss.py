@@ -70,7 +70,7 @@ class CombinedLoss(torch.nn.Module):
         return self.left_scale * left_loss + self.right_scale * right_loss
 
 
-def difference_and_mse_loss(difference_scale=5.0, mse_scale=1.0):
+def difference_and_mse_loss(difference_scale=1.0, mse_scale=1.0):
     return CombinedLoss(
         DifferenceLoss(), torch.nn.MSELoss(reduction='none'),
         left_scale=difference_scale, right_scale=mse_scale,
