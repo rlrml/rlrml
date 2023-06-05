@@ -44,6 +44,7 @@
 
           shellHook = ''
             export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CUDA_TOOLKIT"
+            poetry env use $(which python)
           '';
         };
       });
