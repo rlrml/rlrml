@@ -73,8 +73,23 @@ const GameInfoTable = () => {
 
 	const [columnAggregates, setColumnAggregates] = React.useState({});
 
-	const recomputeColumnAggregates = () => {
-	}
+	React.useEffect(() => {
+		let games = Object.values(gameInfo)
+		let gamesByRMSE = _.sortBy(games, (game) => game.RMSE)
+		let medianGame = gamesByRMSE[Math.floor(gamesByRMSE.length/2)]
+		let theSum = _.sumBy(games, (game) => game.RMSE)
+		let averageRMSE = theSum / games.length
+		if (!medianGame) {
+			medianGame = {}
+		}
+		let medianRMSE = medianGame.RMSE
+		let value = {
+			averageRMSE,
+			medianRMSE,
+		}
+		console.log(value);
+		setColumnAggregates(value)
+	}, [gameInfo])
 
 	const columns = React.useMemo(
 		() => [
@@ -121,16 +136,15 @@ const GameInfoTable = () => {
 				accessorFn: row => getLargestDelta(row.y_pred, row.masks),
 			},
 			{
-				header: 'RMSE',
-			  accessorFn: row => Math.trunc(
-				Math.sqrt(meanSquaredError(row.y_pred, row.y, row.masks)))
-			  ,
+				header: () => `RMSE (M: ${Math.trunc(columnAggregates.medianRMSE)} A: ${Math.trunc(columnAggregates.averageRMSE)})`,
+				id: 'RMSE',
+				accessorFn: row => Math.trunc(row.RMSE),
 			},
 			{
 				header: 'MAE',
-			  accessorFn: row => Math.trunc(
-				meanAbsoluteError(row.y_pred, row.y, row.masks)
-			  ),
+				accessorFn: row => Math.trunc(
+					meanAbsoluteError(row.y_pred, row.y, row.masks)
+				),
 			},
 			{
 				header: 'Mask',

@@ -1,5 +1,6 @@
 import React from 'react';
 import _ from 'lodash';
+import { meanSquaredError, meanAbsoluteError } from './Util';
 
 const WebSocketContext = React.createContext(null);
 const GameInfoContext = React.createContext(null);
@@ -59,6 +60,7 @@ const WebSocketProvider = ({ children }) => {
       }
     )
     players[maximizer].isBiggestMiss = true;
+
     return [uuid, {
       "uuid": uuid,
       players,
@@ -66,6 +68,8 @@ const WebSocketProvider = ({ children }) => {
       y,
       masks,
       y_loss,
+      RMSE: Math.sqrt(meanSquaredError(y, y_pred, masks)),
+      MAE: meanAbsoluteError(y, y_pred, masks),
       "update_epoch": data.epoch,
     }]
   }

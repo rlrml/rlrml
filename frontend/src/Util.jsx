@@ -35,4 +35,34 @@ function getPlayerHTML(player) {
 	);
 }
 
-export { getPlayerHTML, trackerUrl };
+function meanSquaredError(y_true, y_pred, mask) {
+	let sum = 0;
+	let length = mask.reduce((a, b) => a + b, 0);
+
+	for (let i = 0; i < length; i++) {
+		if (mask[i] === 0) {
+			continue
+		}
+		let diff = y_true[i] - y_pred[i];
+		sum += diff * diff;
+	}
+
+	return sum / length;
+}
+
+function meanAbsoluteError(y_true, y_pred, mask) {
+	let sum = 0;
+	let length = mask.reduce((a, b) => a + b, 0);
+
+	for (let i = 0; i < length; i++) {
+		if (mask[i] === 0) {
+			continue
+		}
+		let diff = Math.abs(y_true[i] - y_pred[i]);
+		sum += diff;
+	}
+
+	return sum / length;
+}
+
+export { getPlayerHTML, trackerUrl, meanSquaredError, meanAbsoluteError };
