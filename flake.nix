@@ -1,9 +1,7 @@
 
 {
   description = "Application packaged using poetry2nix";
-
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.poetry2nix = {
     url = "github:nix-community/poetry2nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -28,7 +26,7 @@
             linuxPackages.nvidia_x11
             cudaPackages.cudnn
             cudaPackages.nccl
-            cudaPackages.cudatoolkit
+            cudaPackages_11_7.cudatoolkit
             python311
             poetry
             zlib
@@ -38,7 +36,7 @@
             stdenv.cc.cc.lib
           ];
 
-          CUDA_TOOLKIT = "${pkgs.cudaPackages.cudatoolkit}/lib";
+          CUDA_TOOLKIT = "${pkgs.cudaPackages_11_7.cudatoolkit.cudatoolkit}/lib";
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
 
