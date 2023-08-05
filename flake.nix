@@ -36,7 +36,7 @@
             stdenv.cc.cc.lib
           ];
 
-          CUDA_TOOLKIT = "${pkgs.cudaPackages_11_7.cudatoolkit.cudatoolkit}/lib";
+          CUDA_TOOLKIT = "${pkgs.cudaPackages_11_7.cudatoolkit}/lib";
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
 
